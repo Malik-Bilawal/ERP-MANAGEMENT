@@ -1,0 +1,11 @@
+/* Fix dropdown background */
+.unfold .dropdown-menu,
+.unfold [role="menu"] {
+    background-color: #1f2937 !important; /* dark gray */
+    color: white;
+}
+
+/* dropdown hover */
+.unfold [role="menu"] a:hover {
+    background-color: #374151 !important;
+}
