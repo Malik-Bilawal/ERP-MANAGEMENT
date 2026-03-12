@@ -1,0 +1,23 @@
+<!-- backend/templates/unfold/layouts/base.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Dashboard{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'unfold/css/styles.css' %}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <header>
+        <h1>SRF IMS Dashboard</h1>
+    </header>
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+    <footer>
+        <p>© 2026 SRF IMS</p>
+    </footer>
+    <script src="{% static 'unfold/js/scripts.js' %}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -4,6 +4,11 @@ from django.utils.safestring import mark_safe
 from import_export import resources
 from import_export.admin import ImportExportModelAdmin
 from rangefilter.filters import DateRangeFilter
+
+from unfold.admin import ModelAdmin
+from unfold.contrib.filters.admin import RangeDateFilter
+from unfold.contrib.import_export.forms import ExportForm, ImportForm
+
 from .models import Client
 
 class ClientResource(resources.ModelResource):
@@ -12,20 +17,28 @@ class ClientResource(resources.ModelResource):
         fields = ('client_id', 'name', 'company', 'email', 'total_revenue_generated', 'created_at')
 
 @admin.register(Client)
-class ClientAdmin(ImportExportModelAdmin):
+# --- 2. ADD ModelAdmin HERE FIRST ---
+class ClientAdmin(ModelAdmin, ImportExportModelAdmin):
     resource_class = ClientResource
     
+    # --- 3. ADD THESE TO FIX IMPORT/EXPORT BUTTON STYLES ---
+    import_form_class = ImportForm
+    export_form_class = ExportForm
+    # -------------------------------------------------------
+    
     list_display = ['client_id', 'name', 'company', 'email', 'total_revenue_display', 'project_count', 'is_active_display']
-    list_filter = ['is_active', 'company', ('created_at', DateRangeFilter)]
+    
+    # --- 4. SWAP DateRangeFilter FOR Unfold's RangeDateFilter ---
+    list_filter = ['is_active', 'company', ('created_at', RangeDateFilter)]
+    
     search_fields = ['name', 'company', 'email']
     list_per_page = 25
     save_on_top = True
     
+    # --- YOUR CUSTOM METHODS STAY EXACTLY THE SAME ---
     def total_revenue_display(self, obj):
-        # Define color_class based on revenue amount
         color_class = 'text-green-600 dark:text-green-400' if obj.total_revenue_generated > 10000 else 'text-orange-500 dark:text-orange-400'
         revenue = float(obj.total_revenue_generated) if obj.total_revenue_generated else 0
-        # Build the HTML string manually
         return mark_safe(
             f'<span class="font-semibold {color_class}">${revenue:,.2f}</span>'
         )
@@ -42,7 +55,6 @@ class ClientAdmin(ImportExportModelAdmin):
     
     def is_active_display(self, obj):
         if obj.is_active:
-            # Use mark_safe instead of format_html for strings without placeholders
             return mark_safe('<span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-1 rounded-full dark:bg-green-900 dark:text-green-300 border border-green-400">Active</span>')
         return mark_safe('<span class="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-1 rounded-full dark:bg-red-900 dark:text-red-300 border border-red-400">Inactive</span>')
     is_active_display.short_description = 'Status'
