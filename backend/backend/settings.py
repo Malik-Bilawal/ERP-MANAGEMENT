@@ -35,6 +35,10 @@ INSTALLED_APPS = [
     "clients",
     "projects",
     "payments",
+    # New apps for staff management
+    "staff",  # For company staff management
+    "assignments",  # For project assignments to staff
+    "salary",  # For staff salary and invoice management
 ]
 
 MIDDLEWARE = [
@@ -73,7 +77,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'srf_ims_db',
         'USER': 'root',
-        'PASSWORD': '',
+        'PASSWORD': 'admin123',
         'HOST': 'localhost',
         'PORT': '3307',
         'OPTIONS': {
@@ -124,12 +128,39 @@ UNFOLD = {
                     {"title": "Payments & Invoices", "icon": "account_balance_wallet", "link": "/admin/payments/payment/"},
                 ],
             },
+            # Staff Management Section (consolidated)
+            {
+                "title": "Staff Management",
+                "separator": True,
+                "items": [
+                    {"title": "Staff Members", "icon": "badge", "link": "/admin/staff/staff/"},
+                    {"title": "Staff Roles", "icon": "assignment_ind", "link": "/admin/staff/role/"},
+                    {"title": "Project Assignments", "icon": "assignment", "link": "/admin/assignments/assignment/"},
+                ],
+            },
+            # Salary & Finance Section
+            {
+                "title": "Salary & Finance",
+                "separator": True,
+                "items": [
+                    {"title": "Salary Structures", "icon": "account_tree", "link": "/admin/salary/salarystructure/"},
+                    {"title": "Salary Assignments", "icon": "assignment", "link": "/admin/salary/salaryassignment/"},
+                    {"title": "Salary Slips", "icon": "receipt", "link": "/admin/salary/salaryslip/"},
+                    {"title": "Staff Invoices", "icon": "receipt_long", "link": "/admin/salary/staffinvoice/"},
+                ],
+            },
         ],
     },
 }
 
 # Extra fixes
-AUTH_PASSWORD_VALIDATORS = [{'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'}, {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'}, {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'}, {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'}]
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'}
+]
+
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
@@ -139,9 +170,10 @@ CORS_ALLOWED_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
-    'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework.authentication.SessionAuthentication', 'rest_framework.authentication.BasicAuthentication'],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication', 
+        'rest_framework.authentication.BasicAuthentication'
+    ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10
 }
-
-
