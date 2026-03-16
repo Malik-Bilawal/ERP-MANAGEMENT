@@ -58,6 +58,7 @@ class SalarySlipAdmin(ModelAdmin):
     ]
     list_filter = ['status', 'month']
     search_fields = ['staff__first_name', 'staff__last_name']
+    readonly_fields = ('created_at', 'updated_at')
     autocomplete_fields = ['staff', 'salary_structure', 'generated_by']
     date_hierarchy = 'month'
     
@@ -110,15 +111,19 @@ class SalarySlipAdmin(ModelAdmin):
     
     @display(description="Gross")
     def gross_earnings_display(self, obj):
-        return format_html('₹{:,.2f}', obj.gross_earnings)
+        # Format the number first as a string
+        formatted_value = "{:,.2f}".format(obj.gross_earnings or 0)
+        return format_html('₹{}', formatted_value)
     
     @display(description="Deductions")
     def total_deductions_display(self, obj):
-        return format_html('₹{:,.2f}', obj.total_deductions)
+        formatted_value = "{:,.2f}".format(obj.total_deductions or 0)
+        return format_html('₹{}', formatted_value)
     
     @display(description="Net Pay")
     def net_pay_display(self, obj):
-        return format_html('<span class="font-bold">₹{:,.2f}</span>', obj.net_pay)
+        formatted_value = "{:,.2f}".format(obj.net_pay or 0)
+        return format_html('<span class="font-bold">₹{}</span>', formatted_value)
     
     @display(description="Status")
     def status_badge(self, obj):
@@ -156,6 +161,7 @@ class StaffInvoiceAdmin(ModelAdmin):
     ]
     list_filter = ['status', 'invoice_date']
     search_fields = ['invoice_number', 'staff__first_name', 'staff__last_name']
+    readonly_fields = ('created_at', 'updated_at')
     autocomplete_fields = ['staff', 'project', 'created_by']
     date_hierarchy = 'invoice_date'
     

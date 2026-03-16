@@ -57,6 +57,9 @@ class StaffAdmin(ModelAdmin):
         'phone', 'pan_number', 'account_number'
     ]
     
+    readonly_fields = ('created_at', 'updated_at')
+
+    
     autocomplete_fields = ['role', 'created_by']
     
     # Organized fieldsets for professional look
@@ -166,9 +169,13 @@ class StaffAdmin(ModelAdmin):
     @display(description="Salary")
     def current_salary_display(self, obj):
         if obj.base_salary:
-            return format_html('₹{:,.0f}', obj.base_salary)
+            # Format the number first, then wrap in format_html
+            formatted_salary = "{:,.0f}".format(obj.base_salary)
+            return format_html('₹{}', formatted_salary)
         elif obj.hourly_rate:
-            return format_html('₹{}/hr', obj.hourly_rate)
+            # Same here for consistency
+            formatted_rate = "{:,.2f}".format(obj.hourly_rate)
+            return format_html('₹{}/hr', formatted_rate)
         return format_html('<span class="text-gray-400">Not set</span>')
     
     @display(description="Leave")

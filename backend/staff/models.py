@@ -31,8 +31,7 @@ class Role(models.Model):
     
     @property
     def staff_count(self):
-        return self.staff_set.count()
-
+        return self.staff_members.count()
 class Staff(models.Model):
     EMPLOYMENT_TYPE = [
         ('full_time', 'Full Time'),
