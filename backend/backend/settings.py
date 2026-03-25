@@ -32,13 +32,14 @@ INSTALLED_APPS = [
     "corsheaders",
     "rangefilter",
     "core",
-    "clients",
-    "projects",
-    "payments",
-    # New apps for staff management
-    "staff",  # For company staff management
-    "assignments",  # For project assignments to staff
-    "salary",  # For staff salary and invoice management
+    "services",  # Add this line
+    "client_management",  # Add this
+    "financial",  # Add this
+
+
+
+   
+
 ]
 
 MIDDLEWARE = [
@@ -77,11 +78,10 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'srf_ims_db',
         'USER': 'root',
-        'PASSWORD': 'admin123',
+        'PASSWORD': '',
         'HOST': 'localhost',
-        'PORT': '3307',
+        'PORT': '3308',
         'OPTIONS': {
-            # This forces Django to treat the DB as an older version
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
         },
     }
@@ -95,58 +95,57 @@ STATICFILES_DIRS = []
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
-
 UNFOLD = {
-    "SITE_TITLE": "SRF Integrated Management System",
-    "SITE_HEADER": "SRF IMS",
-    "SITE_URL": "/",
-    "COLORS": {
-        "primary": {
-            "50": "#eff6ff", "100": "#dbeafe", "200": "#bfdbfe",
-            "300": "#93c5fd", "400": "#60a5fa", "500": "#3b82f6",
-            "600": "#2563eb", "700": "#1d4ed8", "800": "#1e40af",
-            "900": "#1e3a8a", "950": "#172554",
-        },
-    },
+    # ... previous settings ...
     "SIDEBAR": {
         "show_search": True,
         "show_all_applications": True,
         "navigation": [
             {
                 "title": "Dashboard",
-                "separator": True,
+                "icon": "dashboard",
                 "items": [
-                    {"title": "Analytics Dashboard", "icon": "dashboard", "link": "/admin/dashboard/"},
+                    {"title": "Financial Dashboard", "link": "/admin/financial/financialsummary/", "icon": "analytics"},
                 ],
             },
             {
-                "title": "Business Operations",
-                "separator": True,
+                "title": "Client Management",
+                "icon": "people",
                 "items": [
-                    {"title": "Clients", "icon": "groups", "link": "/admin/clients/client/"},
-                    {"title": "Projects", "icon": "rocket_launch", "link": "/admin/projects/project/"},
-                    {"title": "Payments & Invoices", "icon": "account_balance_wallet", "link": "/admin/payments/payment/"},
+                    {"title": "Clients", "link": "/admin/client_management/client/", "icon": "person"},
+                    {"title": "Projects", "link": "/admin/client_management/project/", "icon": "work"},
+                    {"title": "Time Entries", "link": "/admin/client_management/timeentry/", "icon": "schedule"},
+                    {"title": "Milestones", "link": "/admin/client_management/milestone/", "icon": "flag"},
+                    {"title": "Documents", "link": "/admin/client_management/clientdocument/", "icon": "folder"},
+                    {"title": "Communications", "link": "/admin/client_management/clientcommunication/", "icon": "chat"},
                 ],
             },
-            # Staff Management Section (consolidated)
             {
-                "title": "Staff Management",
-                "separator": True,
+                "title": "Financial Management",
+                "icon": "payments",
                 "items": [
-                    {"title": "Staff Members", "icon": "badge", "link": "/admin/staff/staff/"},
-                    {"title": "Staff Roles", "icon": "assignment_ind", "link": "/admin/staff/role/"},
-                    {"title": "Project Assignments", "icon": "assignment", "link": "/admin/assignments/assignment/"},
+                    {"title": "Invoices", "link": "/admin/financial/invoice/", "icon": "receipt"},
+                    {"title": "Revenue", "link": "/admin/financial/revenue/", "icon": "trending_up"},
+                    {"title": "Client Balances", "link": "/admin/financial/clientbalance/", "icon": "account_balance"},
+                    {"title": "Company Revenue", "link": "/admin/financial/companyrevenue/", "icon": "summarize"},
+                ],
+           },
+            {
+                "title": "Services Management",
+                "icon": "services",
+                "items": [
+                    {"title": "Service Categories", "link": "/admin/services/servicecategory/", "icon": "category"},
+                    {"title": "Services", "link": "/admin/services/service/", "icon": "build"},
+                    {"title": "Sub-Services", "link": "/admin/services/subservice/", "icon": "list_alt"},
+                    {"title": "Client Services", "link": "/admin/services/clientservice/", "icon": "people"},
+                    {"title": "Pricing History", "link": "/admin/services/servicepricinghistory/", "icon": "history"},
                 ],
             },
-            # Salary & Finance Section
             {
-                "title": "Salary & Finance",
-                "separator": True,
+                "title": "System Settings",
+                "icon": "settings",
                 "items": [
-                    {"title": "Salary Structures", "icon": "account_tree", "link": "/admin/salary/salarystructure/"},
-                    {"title": "Salary Assignments", "icon": "assignment", "link": "/admin/salary/salaryassignment/"},
-                    {"title": "Salary Slips", "icon": "receipt", "link": "/admin/salary/salaryslip/"},
-                    {"title": "Staff Invoices", "icon": "receipt_long", "link": "/admin/salary/staffinvoice/"},
+                    {"title": "Company Settings", "link": "/admin/core/companysettings/", "icon": "business"},
                 ],
             },
         ],
