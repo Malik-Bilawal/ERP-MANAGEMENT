@@ -47,7 +47,7 @@ class ClientAdmin(ModelAdmin, ImportExportModelAdmin):
     readonly_fields = ['client_id', 'created_at', 'updated_at']
     
     def total_revenue_display(self, obj):
-     return format_html('<b>${}</b>', "{:,.2f}".format(obj.total_revenue))
+     return format_html('<b>${}</b>', "{:,.2f}".format(float(obj.total_revenue)))
     total_revenue_display.short_description = "Total Revenue"
     
     def total_projects(self, obj):
@@ -129,7 +129,7 @@ class ProjectServiceAdmin(ModelAdmin):
     raw_id_fields = ['project', 'sub_service']
     
     def total_price_display(self, obj):
-     return format_html('${}', "{:,.2f}".format(obj.total_price))
+     return format_html('<span>${}</span>', "{:,.2f}".format(float(obj.total_price)))
     total_price_display.short_description = "Total Price"
 
 
@@ -143,7 +143,7 @@ class TimeEntryAdmin(ModelAdmin):
     
     def billable_amount_display(self, obj):
      if obj.is_billable:
-        return format_html('${}', "{:,.2f}".format(obj.billable_amount))
+        return format_html('<span>${}</span>', "{:,.2f}".format(float(obj.billable_amount)))
      return '-'
     billable_amount_display.short_description = "Billable Amount"
     

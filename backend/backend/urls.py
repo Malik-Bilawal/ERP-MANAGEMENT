@@ -2,8 +2,10 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from financial.views import financial_dashboard
 
 urlpatterns = [
+    path('admin/financial/dashboard/', financial_dashboard, name='financial_dashboard'),
     path('admin/', admin.site.urls),
     path('api/services/', include('services.urls')),
     path('api/client-management/', include('client_management.urls')),  # Add this

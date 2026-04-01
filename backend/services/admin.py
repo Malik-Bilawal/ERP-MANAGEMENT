@@ -92,9 +92,9 @@ class SubServiceAdmin(ModelAdmin, ImportExportModelAdmin):
     raw_id_fields = ['service']
     
     def price_display(self, obj):
-     formatted_price = "{:,.2f}".format(obj.price)
-     return format_html('<b>${}</b>', formatted_price)
-     price_display.short_description = "Price"
+        formatted_price = "{:,.2f}".format(float(obj.price))
+        return format_html('<b>${}</b>', formatted_price)
+    price_display.short_description = "Price"
     
     fieldsets = (
         ('Sub-Service Information', {
@@ -139,8 +139,8 @@ class ClientServiceAdmin(ModelAdmin):
     def final_price_display(self, obj):
         price = obj.final_price
         if obj.custom_price:
-            return format_html('<b>${:,.2f}</b> <span style="color: green;">(Custom)</span>', price)
-        return format_html('${:,.2f}', price)
+            return format_html('<b>${}</b> <span style="color: green;">(Custom)</span>', "{:,.2f}".format(float(price)))
+        return format_html('<span>${}</span>', "{:,.2f}".format(float(price)))
     final_price_display.short_description = "Price"
     
     fieldsets = (

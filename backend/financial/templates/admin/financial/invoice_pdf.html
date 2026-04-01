@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Invoice {{ invoice.invoice_number }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Helvetica', 'Arial', sans-serif;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #333;
+            padding: 20px;
+        }
+        .invoice-container {
+            max-width: 800px;
+            margin: 0 auto;
+            border: 2px solid #333;
+            padding: 30px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 20px;
+        }
+        .company-info h1 {
+            font-size: 24px;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        .company-info p {
+            font-size: 11px;
+            color: #666;
+        }
+        .invoice-title {
+            text-align: right;
+        }
+        .invoice-title h2 {
+            font-size: 28px;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        .invoice-title p {
+            font-size: 12px;
+            color: #666;
+        }
+        .invoice-details {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+        }
+        .client-info, .invoice-info {
+            width: 45%;
+        }
+        .invoice-info {
+            text-align: right;
+        }
+        .label {
+            font-weight: bold;
+            color: #555;
+        }
+        .info-group {
+            margin-bottom: 8px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #2c3e50;
+            color: white;
+            font-weight: bold;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .totals {
+            margin-left: auto;
+            width: 300px;
+        }
+        .totals-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #ddd;
+        }
+        .totals-row.total {
+            font-size: 16px;
+            font-weight: bold;
+            border: 2px solid #333;
+            margin-top: 10px;
+            padding: 12px;
+        }
+        .status-paid { color: #27ae60; }
+        .status-partial { color: #f39c12; }
+        .status-unpaid { color: #e74c3c; }
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 10px;
+            color: #666;
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice-container">
+        <div class="header">
+            <div class="company-info">
+                <h1>{{ company_name }}</h1>
+                <p>{{ company_address }}</p>
+                <p>Phone: {{ company_phone }} | Email: {{ company_email }}</p>
+            </div>
+            <div class="invoice-title">
+                <h2>INVOICE</h2>
+                <p><strong>Invoice #:</strong> {{ invoice.invoice_number }}</p>
+                <p><strong>Invoice ID:</strong> {{ invoice.invoice_id }}</p>
+            </div>
+        </div>
+
+        <div class="invoice-details">
+            <div class="client-info">
+                <h3 style="margin-bottom: 10px; color: #2c3e50;">Bill To:</h3>
+                <div class="info-group">
+                    <span class="label">Client Name:</span> {{ invoice.client.name }}
+                </div>
+                {% if invoice.client.company_name %}
+                <div class="info-group">
+                    <span class="label">Company:</span> {{ invoice.client.company_name }}
+                </div>
+                {% endif %}
+                <div class="info-group">
+                    <span class="label">Email:</span> {{ invoice.client.email }}
+                </div>
+                <div class="info-group">
+                    <span class="label">Phone:</span> {{ invoice.client.phone }}
+                </div>
+                <div class="info-group">
+                    <span class="label">Address:</span> {{ invoice.client.billing_address }}
+                </div>
+            </div>
+            <div class="invoice-info">
+                <div class="info-group">
+                    <span class="label">Invoice Date:</span> {{ invoice.invoice_date|date:"M d, Y" }}
+                </div>
+                <div class="info-group">
+                    <span class="label">Project:</span> {{ invoice.project.name }}
+                </div>
+                <div class="info-group">
+                    <span class="label">Project ID:</span> {{ invoice.project.project_id }}
+                </div>
+                <div class="info-group">
+                    <span class="label">Status:</span> 
+                    <span class="status-{{ invoice.status }}">{{ invoice.get_status_display|upper }}</span>
+                </div>
+            </div>
+        </div>
+
+        <h3 style="margin-bottom: 10px; color: #2c3e50;">Invoice Items</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th>Project</th>
+                    <th>Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Project: {{ invoice.project.name }}</td>
+                    <td>{{ invoice.project.project_id }}</td>
+                    <td>${{ invoice.amount|floatformat:2 }}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="totals">
+            <div class="totals-row">
+                <span>Total Amount:</span>
+                <span>${{ invoice.amount|floatformat:2 }}</span>
+            </div>
+            <div class="totals-row">
+                <span>Amount Paid:</span>
+                <span style="color: #27ae60;">${{ invoice.amount_paid|floatformat:2 }}</span>
+            </div>
+            <div class="totals-row total">
+                <span>Balance Due:</span>
+                <span>${{ invoice.remaining_amount|floatformat:2 }}</span>
+            </div>
+        </div>
+
+        {% if payments %}
+        <h3 style="margin: 30px 0 10px; color: #2c3e50;">Payment History</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Payment ID</th>
+                    <th>Method</th>
+                    <th>Reference</th>
+                    <th>Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for payment in payments %}
+                <tr>
+                    <td>{{ payment.payment_date|date:"M d, Y" }}</td>
+                    <td>{{ payment.payment_id }}</td>
+                    <td>{{ payment.get_payment_method_display }}</td>
+                    <td>{{ payment.transaction_reference|default:"-" }}</td>
+                    <td>${{ payment.amount|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        {% if invoice.notes %}
+        <div style="margin-top: 30px; padding: 15px; background: #f9f9f9; border-left: 4px solid #2c3e50;">
+            <strong>Notes:</strong>
+            <p>{{ invoice.notes }}</p>
+        </div>
+        {% endif %}
+
+        <div class="footer">
+            <p>Thank you for your business!</p>
+            <p>Generated on {% now "M d, Y" %}</p>
+        </div>
+    </div>
+</body>
+</html>

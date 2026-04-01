@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "services",  # Add this line
     "client_management",  # Add this
     "financial",  # Add this
+    "hr",  # HR/Employees module
 
 
 
@@ -96,7 +97,6 @@ STATICFILES_DIRS = []
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 UNFOLD = {
-    # ... previous settings ...
     "SIDEBAR": {
         "show_search": True,
         "show_all_applications": True,
@@ -105,47 +105,35 @@ UNFOLD = {
                 "title": "Dashboard",
                 "icon": "dashboard",
                 "items": [
-                    {"title": "Financial Dashboard", "link": "/admin/financial/financialsummary/", "icon": "analytics"},
+                    {"title": "Financial Dashboard", "link": "/admin/financial/dashboard/", "icon": "analytics"},
+                    {"title": "Company Revenue", "link": "/admin/financial/companyrevenue/", "icon": "trending_up"},
                 ],
             },
             {
-                "title": "Client Management",
-                "icon": "people",
-                "items": [
-                    {"title": "Clients", "link": "/admin/client_management/client/", "icon": "person"},
-                    {"title": "Projects", "link": "/admin/client_management/project/", "icon": "work"},
-                    {"title": "Time Entries", "link": "/admin/client_management/timeentry/", "icon": "schedule"},
-                    {"title": "Milestones", "link": "/admin/client_management/milestone/", "icon": "flag"},
-                    {"title": "Documents", "link": "/admin/client_management/clientdocument/", "icon": "folder"},
-                    {"title": "Communications", "link": "/admin/client_management/clientcommunication/", "icon": "chat"},
-                ],
-            },
-            {
-                "title": "Financial Management",
+                "title": "Income Module",
                 "icon": "payments",
-                "items": [
-                    {"title": "Invoices", "link": "/admin/financial/invoice/", "icon": "receipt"},
-                    {"title": "Revenue", "link": "/admin/financial/revenue/", "icon": "trending_up"},
-                    {"title": "Client Balances", "link": "/admin/financial/clientbalance/", "icon": "account_balance"},
-                    {"title": "Company Revenue", "link": "/admin/financial/companyrevenue/", "icon": "summarize"},
-                ],
-           },
-            {
-                "title": "Services Management",
-                "icon": "services",
                 "items": [
                     {"title": "Service Categories", "link": "/admin/services/servicecategory/", "icon": "category"},
                     {"title": "Services", "link": "/admin/services/service/", "icon": "build"},
                     {"title": "Sub-Services", "link": "/admin/services/subservice/", "icon": "list_alt"},
-                    {"title": "Client Services", "link": "/admin/services/clientservice/", "icon": "people"},
-                    {"title": "Pricing History", "link": "/admin/services/servicepricinghistory/", "icon": "history"},
+                    {"title": "Clients", "link": "/admin/client_management/client/", "icon": "person"},
+                    {"title": "Projects", "link": "/admin/client_management/project/", "icon": "work"},
+                    {"title": "Invoices", "link": "/admin/financial/invoice/", "icon": "receipt"},
+                    {"title": "Payments", "link": "/admin/financial/payment/", "icon": "payments"},
+                    {"title": "Revenue", "link": "/admin/financial/revenue/", "icon": "trending_up"},
+                    {"title": "Client Balances", "link": "/admin/financial/clientbalance/", "icon": "account_balance"},
                 ],
             },
             {
-                "title": "System Settings",
-                "icon": "settings",
+                "title": "Outcome Module",
+                "icon": "group",
                 "items": [
-                    {"title": "Company Settings", "link": "/admin/core/companysettings/", "icon": "business"},
+                    {"title": "Employee Roles", "link": "/admin/hr/employeerole/", "icon": "work"},
+                    {"title": "Employees", "link": "/admin/hr/employee/", "icon": "people"},
+                    {"title": "Expense Categories", "link": "/admin/hr/expensecategory/", "icon": "category"},
+                    {"title": "Monthly Plans", "link": "/admin/hr/monthlyexpenseplan/", "icon": "calendar_today"},
+                    {"title": "Salary Payments", "link": "/admin/hr/salarypayment/", "icon": "payments"},
+                    {"title": "Salary Records", "link": "/admin/hr/salaryrecord/", "icon": "history"},
                 ],
             },
         ],

@@ -5,3 +5,4 @@ mysqlclient==2.2.8
 python-dotenv==1.2.2
 django-filter==24.3
 Pillow==11.1.0
+xhtml2pdf==0.2.11

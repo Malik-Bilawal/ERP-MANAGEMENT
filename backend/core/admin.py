@@ -2,6 +2,13 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
 from .models import CompanySettings
+from django.urls import reverse
+from django.http import HttpResponseRedirect
+
+class CustomAdminSite(admin.AdminSite):
+    def index(self, request, extra_context=None):
+        # Redirect to financial dashboard
+        return HttpResponseRedirect(reverse('financial_dashboard'))
 
 @admin.register(CompanySettings)
 class CompanySettingsAdmin(ModelAdmin):
