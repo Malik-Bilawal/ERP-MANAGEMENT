@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from decimal import Decimal
 from django.core.validators import MinValueValidator
+from django.db.models import Sum
 
 User = get_user_model()
 
@@ -11,7 +12,7 @@ User = get_user_model()
 from services.models import SubService
 
 class Client(models.Model):
-    """Enhanced Client Model with Complete Information"""
+    """Simplified Client Model - Essential info only"""
     CLIENT_TYPE_CHOICES = [
         ('individual', 'Individual'),
         ('business', 'Business'),
@@ -30,49 +31,27 @@ class Client(models.Model):
         ('blacklisted', 'Blacklisted'),
     ]
     
-    # Basic Information
     client_id = models.CharField(max_length=20, unique=True, editable=False)
     client_type = models.CharField(max_length=20, choices=CLIENT_TYPE_CHOICES, default='individual')
     name = models.CharField(max_length=200)
     email = models.EmailField(unique=True)
     phone = models.CharField(max_length=20)
-    alternative_phone = models.CharField(max_length=20, blank=True, null=True)
     
-    # Business Information
-    company_name = models.CharField(max_length=200, blank=True, null=True)
-    website = models.URLField(blank=True, null=True)
-    industry = models.CharField(max_length=100, blank=True, null=True)
+    # Tax & Financial
     tax_id = models.CharField(max_length=50, blank=True, null=True, verbose_name="Tax ID / GST")
-    
-    # Address Information
-    billing_address = models.TextField()
-    shipping_address = models.TextField(blank=True, null=True, verbose_name="Shipping Address")
-    city = models.CharField(max_length=100)
-    state = models.CharField(max_length=100)
-    country = models.CharField(max_length=100, default='Pakistan')
-    postal_code = models.CharField(max_length=20)
-    
-    # Contact Persons
-    primary_contact_name = models.CharField(max_length=100)
-    primary_contact_designation = models.CharField(max_length=100, blank=True, null=True)
-    secondary_contact_name = models.CharField(max_length=100, blank=True, null=True)
-    secondary_contact_phone = models.CharField(max_length=20, blank=True, null=True)
-    
-    # Financial Information
-    credit_limit = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
-    payment_terms = models.IntegerField(default=30, help_text="Payment terms in days")
     tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, help_text="Tax rate percentage")
     
-    # Status and Tracking
+    # Services this client uses
+    subscribed_services = models.ManyToManyField(SubService, blank=True, related_name='subscribed_clients', verbose_name="Sub-Services")
+    
+    # Status
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='lead')
-    source = models.CharField(max_length=100, blank=True, null=True, help_text="How did you find us?")
     notes = models.TextField(blank=True, null=True)
     
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_clients')
-    assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='assigned_clients')
     
     class Meta:
         ordering = ['-created_at']
@@ -84,7 +63,6 @@ class Client(models.Model):
     
     def save(self, *args, **kwargs):
         if not self.client_id:
-            # Generate unique client ID
             year = timezone.now().year
             count = Client.objects.filter(created_at__year=year).count() + 1
             self.client_id = f"CLT-{year}-{count:04d}"
@@ -103,13 +81,19 @@ class Client(models.Model):
     
     @property
     def total_revenue(self):
-        # Will be updated when invoices are created
-        return Decimal('0.00')
+        from financial.models import Invoice
+        paid = Invoice.objects.filter(client=self, status='paid').aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        partial = Invoice.objects.filter(client=self, status='partial').aggregate(total=Sum('amount_paid'))['total'] or Decimal('0.00')
+        return paid + partial
     
     @property
     def pending_payments(self):
-        # Will be updated when invoices are created
-        return Decimal('0.00')
+        from financial.models import ClientBalance
+        try:
+            balance = ClientBalance.objects.get(client=self)
+            return balance.pending_balance
+        except ClientBalance.DoesNotExist:
+            return Decimal('0.00')
 
 
 class Project(models.Model):
@@ -134,35 +118,29 @@ class Project(models.Model):
     
     PROJECT_TYPE_CHOICES = [
         ('fixed', 'Fixed Price'),
-        ('hourly', 'Hourly Billing'),
-        ('retainer', 'Retainer'),
-        ('milestone', 'Milestone Based'),
     ]
     
     # Basic Information
     project_id = models.CharField(max_length=20, unique=True, editable=False)
-    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='projects')
+    client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, related_name='projects')
     name = models.CharField(max_length=200)
     description = models.TextField()
     
     # Project Details
-    project_type = models.CharField(max_length=20, choices=PROJECT_TYPE_CHOICES, default='fixed')
     priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='medium')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='planning')
     
-    # Financial Details
-    budget = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
-    hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="If hourly billing")
-    total_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, editable=False)
+    # Financial
+    budget = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, verbose_name="Project Cost")
     
     # Timeline
     start_date = models.DateField()
     estimated_end_date = models.DateField()
     actual_end_date = models.DateField(null=True, blank=True)
     
-    # Team
-    project_manager = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='managed_projects')
-    team_members = models.ManyToManyField(User, related_name='assigned_projects', blank=True)
+    # Team - use Employee instead of User
+    project_manager = models.ForeignKey('hr.Employee', on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_projects')
+    team_members = models.ManyToManyField('hr.Employee', related_name='assigned_projects', blank=True)
     
     # Services and Tasks
     assigned_services = models.ManyToManyField(SubService, through='ProjectService', related_name='projects')
@@ -206,8 +184,6 @@ class Project(models.Model):
     
     @property
     def total_billable_amount(self):
-        if self.project_type == 'hourly':
-            return self.total_hours_worked * self.hourly_rate
         return self.budget
     
     @property
@@ -222,6 +198,19 @@ class Project(models.Model):
     @property
     def is_overdue(self):
         return self.status not in ['completed', 'cancelled'] and timezone.now().date() > self.estimated_end_date
+
+    @property
+    def remaining_budget(self):
+        """Budget minus total invoiced amount for this project."""
+        from financial.models import Invoice
+        total_invoiced = Invoice.objects.filter(project=self).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        return max(self.budget - total_invoiced, Decimal('0.00'))
+
+    @property
+    def total_invoiced(self):
+        """Total amount invoiced for this project."""
+        from financial.models import Invoice
+        return Invoice.objects.filter(project=self).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
 
 
 class ProjectService(models.Model):
@@ -277,9 +266,7 @@ class TimeEntry(models.Model):
     
     @property
     def billable_amount(self):
-        if self.is_billable and self.project.project_type == 'hourly':
-            return self.hours * self.project.hourly_rate
-        return 0
+        return self.hours * self.project.budget if self.is_billable else 0
 
 
 class Milestone(models.Model):
@@ -319,7 +306,7 @@ class ClientDocument(models.Model):
         ('other', 'Other'),
     ]
     
-    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='documents')
+    client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, related_name='documents')
     project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True, related_name='documents')
     document_type = models.CharField(max_length=20, choices=DOCUMENT_TYPES)
     title = models.CharField(max_length=200)
@@ -348,7 +335,7 @@ class ClientCommunication(models.Model):
         ('outgoing', 'Outgoing'),
     ]
     
-    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='communications')
+    client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, related_name='communications')
     project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True, related_name='communications')
     communication_type = models.CharField(max_length=20, choices=COMMUNICATION_TYPE)
     direction = models.CharField(max_length=10, choices=DIRECTION_CHOICES)

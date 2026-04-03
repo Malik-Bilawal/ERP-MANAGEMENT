@@ -92,7 +92,7 @@ DATABASES = {
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'static'
 
-STATICFILES_DIRS = [] 
+STATICFILES_DIRS = []
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -105,7 +105,7 @@ UNFOLD = {
                 "title": "Dashboard",
                 "icon": "dashboard",
                 "items": [
-                    {"title": "Financial Dashboard", "link": "/admin/financial/dashboard/", "icon": "analytics"},
+                    {"title": "Financial Dashboard", "link": "/admin/core/companysettings/financial-dashboard/", "icon": "analytics"},
                     {"title": "Company Revenue", "link": "/admin/financial/companyrevenue/", "icon": "trending_up"},
                 ],
             },
@@ -134,6 +134,7 @@ UNFOLD = {
                     {"title": "Monthly Plans", "link": "/admin/hr/monthlyexpenseplan/", "icon": "calendar_today"},
                     {"title": "Salary Payments", "link": "/admin/hr/salarypayment/", "icon": "payments"},
                     {"title": "Salary Records", "link": "/admin/hr/salaryrecord/", "icon": "history"},
+                    {"title": "Actual Expenses", "link": "/admin/hr/actualexpense/", "icon": "receipt_long"},
                 ],
             },
         ],

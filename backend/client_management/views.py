@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
 from datetime import timedelta
+from decimal import Decimal
 from .models import (
     Client, Project, ProjectService, TimeEntry,
     Milestone, ClientDocument, ClientCommunication
@@ -11,15 +12,16 @@ from .models import (
 from .serializers import (
     ClientSerializer, ProjectSerializer, ProjectServiceSerializer,
     TimeEntrySerializer, MilestoneSerializer, ClientDocumentSerializer,
-    ClientCommunicationSerializer
+    ClientCommunicationSerializer, ProjectInvoiceSerializer
 )
+from financial.models import Invoice
 
 class ClientViewSet(viewsets.ModelViewSet):
     queryset = Client.objects.all()
     serializer_class = ClientSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['name', 'email', 'phone', 'company_name', 'client_id']
+    search_fields = ['name', 'email', 'phone', 'client_id']
     ordering_fields = ['created_at', 'name', 'status', 'total_revenue']
     
     def get_queryset(self):
@@ -46,6 +48,24 @@ class ClientViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
     
     @action(detail=True, methods=['get'])
+    def projects_for_invoice(self, request, pk=None):
+        """Get all projects for a client with remaining budget for invoice creation."""
+        client = self.get_object()
+        projects = client.projects.all()
+        data = []
+        for project in projects:
+            data.append({
+                'id': project.id,
+                'project_id': project.project_id,
+                'name': project.name,
+                'status': project.status,
+                'budget': str(project.budget),
+                'total_invoiced': str(project.total_invoiced),
+                'remaining_budget': str(project.remaining_budget),
+            })
+        return Response(data)
+    
+    @action(detail=True, methods=['get'])
     def communications(self, request, pk=None):
         """Get all communications for a client"""
         client = self.get_object()
@@ -62,8 +82,6 @@ class ClientViewSet(viewsets.ModelViewSet):
             'pending_payments': client.pending_payments,
             'total_projects': client.total_projects,
             'active_projects': client.active_projects,
-            'credit_limit': client.credit_limit,
-            'credit_available': client.credit_limit - client.pending_payments,
         })
 
 

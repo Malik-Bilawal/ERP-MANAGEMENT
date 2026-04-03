@@ -1,0 +1,43 @@
+/* Three-column form layout for admin fieldsets */
+.three-col-form .form-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+.three-col-form .form-row .field-box {
+    margin-bottom: 0;
+}
+
+/* Unfold-specific: target fieldset rows */
+.module.aligned .form-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+.module.aligned .form-row .field-box {
+    min-width: 0;
+}
+
+/* Full-width for textareas and many-to-many */
+.module.aligned .form-row .field-box:has(textarea),
+.module.aligned .form-row .field-box:has(select[multiple]),
+.module.aligned .form-row .field-box:has(.selector) {
+    grid-column: 1 / -1;
+}
+
+/* Responsive: 2 columns on medium screens */
+@media (max-width: 1024px) {
+    .module.aligned .form-row {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Responsive: 1 column on small screens */
+@media (max-width: 768px) {
+    .module.aligned .form-row {
+        grid-template-columns: 1fr;
+    }
+}

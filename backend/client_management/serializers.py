@@ -21,6 +21,17 @@ class ClientSerializer(serializers.ModelSerializer):
 
 
 
+class ProjectInvoiceSerializer(serializers.Serializer):
+    """Lightweight project serializer for invoice creation."""
+    id = serializers.IntegerField()
+    project_id = serializers.CharField()
+    name = serializers.CharField()
+    status = serializers.CharField()
+    budget = serializers.DecimalField(max_digits=15, decimal_places=2)
+    total_invoiced = serializers.DecimalField(max_digits=15, decimal_places=2)
+    remaining_budget = serializers.DecimalField(max_digits=15, decimal_places=2)
+
+
 class ProjectSerializer(serializers.ModelSerializer):
     client_name = serializers.CharField(source='client.name', read_only=True)
     project_manager_name = serializers.CharField(source='project_manager.get_full_name', read_only=True)
@@ -28,11 +39,13 @@ class ProjectSerializer(serializers.ModelSerializer):
     total_billable_amount = serializers.DecimalField(max_digits=15, decimal_places=2, read_only=True)
     days_remaining = serializers.IntegerField(read_only=True)
     is_overdue = serializers.BooleanField(read_only=True)
+    remaining_budget = serializers.DecimalField(max_digits=15, decimal_places=2, read_only=True)
+    total_invoiced = serializers.DecimalField(max_digits=15, decimal_places=2, read_only=True)
     
     class Meta:
         model = Project
         fields = '__all__'
-        read_only_fields = ['project_id', 'total_cost', 'created_at', 'updated_at', 'created_by']
+        read_only_fields = ['project_id', 'created_at', 'updated_at', 'created_by']
 
 
 class ProjectServiceSerializer(serializers.ModelSerializer):

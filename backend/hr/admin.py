@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.db.models import Sum
 from unfold.admin import ModelAdmin
-from .models import EmployeeRole, Employee, SalaryPayment, SalaryRecord, ExpenseCategory, MonthlyExpensePlan
+from .models import EmployeeRole, Employee, SalaryPayment, SalaryRecord, ExpenseCategory, MonthlyExpensePlan, ActualExpense
 
 
 @admin.register(ExpenseCategory)
@@ -49,7 +49,7 @@ class MonthlyExpensePlanAdmin(ModelAdmin):
             'fields': ('plan_id', 'month', 'status', 'notes')
         }),
         ('Planned Expenses', {
-            'fields': ('planned_salary', 'planned_bonus', 'planned_medical', 'planned_travel', 'planned_other', 'total_planned'),
+            'fields': ('planned_salary', 'planned_bonus', 'planned_medical', 'planned_travel', 'planned_equipment', 'planned_training', 'planned_other', 'total_planned'),
             'description': 'Plan your expenses for the month'
         }),
         ('Metadata', {
@@ -114,6 +114,10 @@ class EmployeeAdmin(ModelAdmin):
         }),
         ('Employment Details', {
             'fields': ('role', 'employment_type', 'salary', 'joining_date', 'is_active')
+        }),
+        ('Bank Details', {
+            'fields': ('bank_name', 'account_number', 'ifsc_code'),
+            'classes': ('collapse',)
         }),
         ('Emergency Contact', {
             'fields': ('emergency_contact_name', 'emergency_contact_phone'),
@@ -258,3 +262,59 @@ class SalaryRecordAdmin(ModelAdmin):
             color, status
         )
     paid_status.short_description = "Status"
+
+
+@admin.register(ActualExpense)
+class ActualExpenseAdmin(ModelAdmin):
+    list_display = ['expense_id', 'category_display', 'amount_display', 'employee_display', 'expense_month_display', 'status_badge', 'expense_date']
+    list_filter = ['status', 'category', 'expense_month']
+    search_fields = ['expense_id', 'description', 'employee__first_name', 'employee__last_name']
+    readonly_fields = ['expense_id', 'created_at', 'updated_at']
+    raw_id_fields = ['employee', 'created_by']
+    list_per_page = 20
+    date_hierarchy = 'expense_date'
+    
+    def category_display(self, obj):
+        return format_html('<span>{}</span>', obj.category.name)
+    category_display.short_description = "Category"
+    
+    def amount_display(self, obj):
+        return format_html('<span style="font-weight: bold; color: #e74c3c;">${}</span>', "{:,.2f}".format(float(obj.amount)))
+    amount_display.short_description = "Amount"
+    
+    def employee_display(self, obj):
+        if obj.employee:
+            return format_html('<a href="/admin/hr/employee/{}/change/">{}</a>', 
+                              obj.employee.id, obj.employee.full_name)
+        return "-"
+    employee_display.short_description = "Employee"
+    
+    def expense_month_display(self, obj):
+        return obj.expense_month.strftime('%B %Y')
+    expense_month_display.short_description = "Month"
+    
+    def status_badge(self, obj):
+        colors = {'pending': '#f39c12', 'approved': '#3498db', 'completed': '#2ecc71', 'cancelled': '#e74c3c'}
+        color = colors.get(obj.status, '#95a5a6')
+        return format_html(
+            '<span style="background: {}; color: white; padding: 3px 8px; border-radius: 4px; font-size: 12px;">{}</span>',
+            color, obj.get_status_display().upper()
+        )
+    status_badge.short_description = "Status"
+    
+    fieldsets = (
+        ('Expense Information', {
+            'fields': ('expense_id', 'expense_month', 'category', 'amount', 'description')
+        }),
+        ('Details', {
+            'fields': ('status', 'expense_date', 'employee', 'transaction_reference', 'receipt')
+        }),
+        ('Notes', {
+            'fields': ('notes',),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('created_by', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )

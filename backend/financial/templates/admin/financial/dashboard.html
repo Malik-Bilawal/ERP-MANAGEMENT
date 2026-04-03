@@ -1,115 +1,251 @@
-{% extends "admin/base_site.html" %}
-{% load static %}
+{% extends "admin/base.html" %}
+{% load i18n static unfold %}
+
+{% block title %}{{ title }}{% endblock %}
 
 {% block extrastyle %}
+{{ block.super }}
 <style>
-    .dashboard-container { padding: 20px; }
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
-    .stat-card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-    .stat-card.revenue { border-left: 4px solid #2ecc71; }
-    .stat-card.pending { border-left: 4px solid #e74c3c; }
-    .stat-card.clients { border-left: 4px solid #3498db; }
-    .stat-card.projects { border-left: 4px solid #f39c12; }
-    .stat-card.profit { border-left: 4px solid #9b59b6; }
-    .stat-card.salary { border-left: 4px solid #e67e22; }
-    .stat-card.employees { border-left: 4px solid #1abc9c; }
-    .stat-title { font-size: 13px; color: #666; margin-bottom: 8px; text-transform: uppercase; font-weight: 600; }
-    .stat-value { font-size: 28px; font-weight: bold; color: #333; margin-bottom: 5px; }
-    .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 20px; margin-bottom: 30px; }
-    .chart-card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-    .chart-title { font-size: 16px; font-weight: bold; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #eee; }
-    .data-table { width: 100%; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-    .data-table th { background: #f8f9fa; padding: 12px; text-align: left; font-weight: 600; color: #555; font-size: 13px; }
-    .data-table td { padding: 12px; border-top: 1px solid #eee; color: #333; font-size: 13px; }
-    .data-table tr:hover { background: #f8f9fa; }
-    .progress-bar { width: 100%; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; }
-    .progress-fill { height: 100%; background: #2ecc71; }
-    .amount-positive { color: #2ecc71; font-weight: bold; }
-    .amount-negative { color: #e74c3c; font-weight: bold; }
-    .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
-    .badge-paid { background: #d4edda; color: #155724; }
-    .badge-pending { background: #fff3cd; color: #856404; }
-    .badge-partial { background: #cce5ff; color: #004085; }
-    .badge-overdue { background: #f8d7da; color: #721c24; }
-    @media (max-width: 768px) { .charts-grid { grid-template-columns: 1fr; } .stat-value { font-size: 22px; } }
+    .dashboard-wrapper {
+        padding: 0;
+    }
+
+    .dashboard-header {
+        padding: 1.5rem 2rem;
+        border-bottom: 1px solid var(--border-color, #e5e7eb);
+        margin-bottom: 2rem;
+    }
+
+    .dashboard-header h1 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--body-fg, #111827);
+        margin: 0;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+        padding: 0 2rem;
+    }
+
+    .stat-card {
+        background: var(--body-bg, #ffffff);
+        border: 1px solid var(--border-color, #e5e7eb);
+        border-radius: 0.5rem;
+        padding: 1.25rem;
+    }
+
+    .stat-card.revenue { border-left: 4px solid #10b981; }
+    .stat-card.pending { border-left: 4px solid #ef4444; }
+    .stat-card.clients { border-left: 4px solid #3b82f6; }
+    .stat-card.projects { border-left: 4px solid #f59e0b; }
+    .stat-card.profit { border-left: 4px solid #8b5cf6; }
+    .stat-card.salary { border-left: 4px solid #f97316; }
+    .stat-card.employees { border-left: 4px solid #14b8a6; }
+
+    .stat-title {
+        font-size: 0.75rem;
+        color: var(--body-quiet-color, #6b7280);
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+    }
+
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--body-fg, #111827);
+    }
+
+    .charts-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+        padding: 0 2rem;
+    }
+
+    .chart-card {
+        background: var(--body-bg, #ffffff);
+        border: 1px solid var(--border-color, #e5e7eb);
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+    }
+
+    .chart-title {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--body-fg, #111827);
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid var(--border-color, #e5e7eb);
+    }
+
+    .chart-container {
+        position: relative;
+        width: 100%;
+        height: 280px;
+    }
+
+    .data-table-container {
+        background: var(--body-bg, #ffffff);
+        border: 1px solid var(--border-color, #e5e7eb);
+        border-radius: 0.5rem;
+        overflow: hidden;
+        margin: 0 2rem 2rem;
+    }
+
+    .data-table-container .section-title {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--body-fg, #111827);
+        padding: 1rem 1.5rem;
+        margin: 0;
+        border-bottom: 1px solid var(--border-color, #e5e7eb);
+    }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .data-table th {
+        background: var(--darkened-bg, #f8f8f8);
+        padding: 0.75rem 1rem;
+        text-align: left;
+        font-weight: 600;
+        color: var(--body-quiet-color, #6b7280);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        border-bottom: 1px solid var(--border-color, #e5e7eb);
+    }
+
+    .data-table td {
+        padding: 0.75rem 1rem;
+        border-top: 1px solid var(--border-color, #e5e7eb);
+        color: var(--body-fg, #111827);
+        font-size: 0.875rem;
+    }
+
+    .data-table tbody tr:hover {
+        background: var(--darkened-bg, #f8f8f8);
+    }
+
+    .amount-positive { color: #10b981; font-weight: 600; }
+
+    .badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+
+    .badge-paid { background: #d1fae5; color: #065f46; }
+    .badge-pending { background: #fef3c7; color: #92400e; }
+    .badge-partial { background: #dbeafe; color: #1e40af; }
+
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: var(--body-quiet-color, #6b7280);
+    }
+
+    @media (max-width: 768px) {
+        .charts-grid { grid-template-columns: 1fr; padding: 0 1rem; }
+        .stats-grid { grid-template-columns: 1fr; padding: 0 1rem; }
+        .data-table-container { margin: 0 1rem 2rem; }
+        .stat-value { font-size: 1.25rem; }
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="dashboard-container">
-    <h1 style="margin-bottom: 25px; font-size: 24px;">💰 Financial Dashboard</h1>
-    
-    <!-- Stats Cards - Income -->
+<div class="dashboard-wrapper">
+    <div class="dashboard-header">
+        <h1>{{ title }}</h1>
+    </div>
+
     <div class="stats-grid">
         <div class="stat-card revenue">
-            <div class="stat-title">Total Revenue (Income)</div>
+            <div class="stat-title">{% translate 'Total Revenue' %}</div>
             <div class="stat-value">${{ total_revenue|floatformat:2 }}</div>
         </div>
         <div class="stat-card pending">
-            <div class="stat-title">Pending Client Payments</div>
+            <div class="stat-title">{% translate 'Pending Payments' %}</div>
             <div class="stat-value">${{ pending_payments|floatformat:2 }}</div>
         </div>
         <div class="stat-card clients">
-            <div class="stat-title">Active Clients</div>
+            <div class="stat-title">{% translate 'Active Clients' %}</div>
             <div class="stat-value">{{ total_clients }}</div>
         </div>
         <div class="stat-card projects">
-            <div class="stat-title">Active Projects</div>
+            <div class="stat-title">{% translate 'Active Projects' %}</div>
             <div class="stat-value">{{ active_projects }}</div>
         </div>
     </div>
-    
-    <!-- Stats Cards - Outcome/Expenses -->
+
     <div class="stats-grid">
         <div class="stat-card salary">
-            <div class="stat-title">Total Salary Expenses</div>
+            <div class="stat-title">{% translate 'Salary Expenses' %}</div>
             <div class="stat-value">${{ total_salary_expenses|default:"0"|floatformat:2 }}</div>
         </div>
         <div class="stat-card profit">
-            <div class="stat-title">Net Profit</div>
+            <div class="stat-title">{% translate 'Net Profit' %}</div>
             <div class="stat-value">${{ net_profit|floatformat:2 }}</div>
         </div>
         <div class="stat-card employees">
-            <div class="stat-title">Total Employees</div>
+            <div class="stat-title">{% translate 'Employees' %}</div>
             <div class="stat-value">{{ total_employees|default:"0" }}</div>
         </div>
     </div>
-    
-    <!-- Charts -->
+
     <div class="charts-grid">
         <div class="chart-card">
-            <div class="chart-title">Monthly Revenue Trend</div>
-            <canvas id="revenueChart" height="250"></canvas>
+            <div class="chart-title">{% translate 'Monthly Revenue Trend' %}</div>
+            <div class="chart-container">
+                <canvas id="revenueChart"></canvas>
+            </div>
         </div>
         <div class="chart-card">
-            <div class="chart-title">Top Clients by Revenue</div>
-            <canvas id="clientsChart" height="250"></canvas>
+            <div class="chart-title">{% translate 'Top Clients' %}</div>
+            <div class="chart-container">
+                <canvas id="clientsChart"></canvas>
+            </div>
         </div>
     </div>
-    
+
     <div class="charts-grid">
         <div class="chart-card">
-            <div class="chart-title">Revenue vs Pending</div>
-            <canvas id="comparisonChart" height="250"></canvas>
+            <div class="chart-title">{% translate 'Revenue vs Pending' %}</div>
+            <div class="chart-container">
+                <canvas id="comparisonChart"></canvas>
+            </div>
         </div>
         <div class="chart-card">
-            <div class="chart-title">Project Status</div>
-            <canvas id="projectStatusChart" height="250"></canvas>
+            <div class="chart-title">{% translate 'Project Status' %}</div>
+            <div class="chart-container">
+                <canvas id="projectStatusChart"></canvas>
+            </div>
         </div>
     </div>
-    
-    <!-- Recent Invoices -->
-    <div class="chart-card" style="margin-bottom: 20px;">
-        <div class="chart-title">Recent Invoices</div>
+
+    <div class="data-table-container">
+        <p class="section-title">{% translate 'Recent Invoices' %}</p>
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Invoice ID</th>
-                    <th>Client</th>
-                    <th>Project</th>
-                    <th>Amount</th>
-                    <th>Date</th>
-                    <th>Status</th>
+                    <th>{% translate 'Invoice ID' %}</th>
+                    <th>{% translate 'Client' %}</th>
+                    <th>{% translate 'Project' %}</th>
+                    <th>{% translate 'Amount' %}</th>
+                    <th>{% translate 'Date' %}</th>
+                    <th>{% translate 'Status' %}</th>
                 </tr>
             </thead>
             <tbody>
@@ -122,16 +258,16 @@
                     <td>{{ invoice.invoice_date }}</td>
                     <td>
                         {% if invoice.status == 'paid' %}
-                        <span class="badge badge-paid">Paid</span>
+                        <span class="badge badge-paid">{% translate 'Paid' %}</span>
                         {% elif invoice.status == 'partial' %}
-                        <span class="badge badge-partial">Partial</span>
+                        <span class="badge badge-partial">{% translate 'Partial' %}</span>
                         {% else %}
-                        <span class="badge badge-pending">Unpaid</span>
+                        <span class="badge badge-pending">{% translate 'Unpaid' %}</span>
                         {% endif %}
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="6" style="text-align:center;color:#999;">No invoices yet</td></tr>
+                <tr><td colspan="6" class="empty-state">{% translate 'No invoices yet' %}</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -140,25 +276,92 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    new Chart(document.getElementById('revenueChart').getContext('2d'), {
-        type: 'line',
-        data: { labels: {{ monthly_labels|safe }}, datasets: [{ label: 'Revenue', data: {{ monthly_revenue|safe }}, borderColor: '#2ecc71', backgroundColor: 'rgba(46,204,113,0.1)', tension: 0.4, fill: true }] },
-        options: { responsive: true, plugins: { legend: { position: 'top' } } }
-    });
-    new Chart(document.getElementById('clientsChart').getContext('2d'), {
-        type: 'bar',
-        data: { labels: {{ top_client_names|safe }}, datasets: [{ label: 'Revenue', data: {{ top_client_payments|safe }}, backgroundColor: '#3498db', borderRadius: 8 }] },
-        options: { responsive: true, plugins: { legend: { position: 'top' } } }
-    });
-    new Chart(document.getElementById('comparisonChart').getContext('2d'), {
-        type: 'doughnut',
-        data: { labels: ['Revenue', 'Pending'], datasets: [{ data: [{{ total_revenue }}, {{ pending_payments }}], backgroundColor: ['#2ecc71', '#e74c3c'], borderWidth: 0 }] },
-        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
-    });
-    new Chart(document.getElementById('projectStatusChart').getContext('2d'), {
-        type: 'pie',
-        data: { labels: {{ project_status_labels|safe }}, datasets: [{ data: {{ project_status_counts|safe }}, backgroundColor: ['#2ecc71','#3498db','#f39c12','#e74c3c','#9b59b6'], borderWidth: 0 }] },
-        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    document.addEventListener('DOMContentLoaded', function() {
+        const baseOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { boxWidth: 12, padding: 15, font: { size: 11 } }
+                }
+            },
+            scales: {
+                x: { ticks: { font: { size: 10 } }, grid: { display: false } },
+                y: { ticks: { font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
+            }
+        };
+
+        const pieOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { boxWidth: 12, padding: 15, font: { size: 11 } }
+                }
+            }
+        };
+
+        new Chart(document.getElementById('revenueChart'), {
+            type: 'line',
+            data: {
+                labels: {{ monthly_labels|safe }},
+                datasets: [{
+                    label: 'Revenue',
+                    data: {{ monthly_revenue|safe }},
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16,185,129,0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                }]
+            },
+            options: baseOptions
+        });
+
+        new Chart(document.getElementById('clientsChart'), {
+            type: 'bar',
+            data: {
+                labels: {{ top_client_names|safe }},
+                datasets: [{
+                    label: 'Revenue',
+                    data: {{ top_client_payments|safe }},
+                    backgroundColor: '#3b82f6',
+                    borderRadius: 6
+                }]
+            },
+            options: baseOptions
+        });
+
+        new Chart(document.getElementById('comparisonChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Revenue', 'Pending'],
+                datasets: [{
+                    data: [{{ total_revenue }}, {{ pending_payments }}],
+                    backgroundColor: ['#10b981', '#ef4444'],
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: pieOptions
+        });
+
+        new Chart(document.getElementById('projectStatusChart'), {
+            type: 'pie',
+            data: {
+                labels: {{ project_status_labels|safe }},
+                datasets: [{
+                    data: {{ project_status_counts|safe }},
+                    backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'],
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: pieOptions
+        });
     });
 </script>
 {% endblock %}

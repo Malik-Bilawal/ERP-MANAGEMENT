@@ -1,0 +1,187 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extrastyle %}
+<style>
+    .ledger-container { padding: 20px; }
+    .back-link { display: inline-block; margin-bottom: 16px; color: #3b82f6; text-decoration: none; font-size: 14px; }
+    .back-link:hover { text-decoration: underline; }
+    .client-header { font-size: 24px; font-weight: bold; margin-bottom: 24px; color: #1f2937; }
+    .summary-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+    .summary-card { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; }
+    .summary-card-label { font-size: 12px; color: #6b7280; margin-bottom: 4px; }
+    .summary-card-value { font-size: 24px; font-weight: bold; }
+    .summary-card-value.green { color: #16a34a; }
+    .summary-card-value.red { color: #dc2626; }
+    .summary-card-value.blue { color: #2563eb; }
+    .progress-bar { width: 100%; height: 8px; background: #e5e7eb; border-radius: 4px; margin-top: 8px; }
+    .progress-fill { height: 100%; background: #3b82f6; border-radius: 4px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 2px solid #e5e7eb; }
+    .tab { padding: 12px 20px; cursor: pointer; font-size: 14px; font-weight: 500; color: #6b7280; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #3b82f6; border-bottom-color: #3b82f6; }
+    .tab:hover { color: #1f2937; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
+    th { background: #f9fafb; padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; border-bottom: 1px solid #e5e7eb; }
+    td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid #f3f4f6; }
+    tr:hover { background: #f9fafb; }
+    .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .badge-invoice { background: #dbeafe; color: #1e40af; }
+    .badge-payment { background: #dcfce7; color: #166534; }
+    .badge-paid { background: #dcfce7; color: #166534; }
+    .badge-partial { background: #fef3c7; color: #92400e; }
+    .badge-unpaid { background: #fee2e2; color: #991b1b; }
+    .text-right { text-align: right; }
+    .text-green { color: #16a34a; }
+    .text-red { color: #dc2626; }
+    .text-gray { color: #6b7280; }
+    .font-mono { font-family: monospace; font-size: 12px; }
+    .empty-state { text-align: center; padding: 48px; color: #9ca3af; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ledger-container">
+    <a href="{% url 'admin:client_management_client_changelist' %}" class="back-link">&larr; Back to Clients</a>
+    <h1 class="client-header">{{ client.client_id }} - {{ client.name }} — Ledger</h1>
+
+    <div class="summary-cards">
+        <div class="summary-card">
+            <div class="summary-card-label">Total Project Cost</div>
+            <div class="summary-card-value blue">${{ balance.total_projects_cost|floatformat:2 }}</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-card-label">Total Paid</div>
+            <div class="summary-card-value green">${{ balance.total_paid|floatformat:2 }}</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-card-label">Pending Balance</div>
+            <div class="summary-card-value red">${{ balance.pending_balance|floatformat:2 }}</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-card-label">Payment Progress</div>
+            <div class="summary-card-value">
+                {% if balance.total_projects_cost > 0 %}
+                    {{ balance.total_paid|floatformat:0 }} / {{ balance.total_projects_cost|floatformat:0 }}
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {% widthratio balance.total_paid balance.total_projects_cost 100 %}%"></div>
+                    </div>
+                {% else %}
+                    0%
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <div class="tab active" onclick="showTab('ledger')">Ledger Entries ({{ ledger_entries.count }})</div>
+        <div class="tab" onclick="showTab('invoices')">Invoices ({{ invoices.count }})</div>
+        <div class="tab" onclick="showTab('payments')">Payments ({{ payments.count }})</div>
+    </div>
+
+    <div id="tab-ledger" class="tab-content active">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                    <th>Project</th>
+                    <th class="text-right">Debit</th>
+                    <th class="text-right">Credit</th>
+                    <th class="text-right">Balance</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in ledger_entries %}
+                <tr>
+                    <td>{{ entry.transaction_date }}</td>
+                    <td><span class="badge {% if entry.transaction_type == 'invoice' %}badge-invoice{% else %}badge-payment{% endif %}">{{ entry.get_transaction_type_display }}</span></td>
+                    <td>{{ entry.description }}</td>
+                    <td class="text-gray">{{ entry.project.name|default:"—" }}</td>
+                    <td class="text-right {% if entry.debit > 0 %}text-red{% endif %}">{% if entry.debit > 0 %}${{ entry.debit|floatformat:2 }}{% else %}—{% endif %}</td>
+                    <td class="text-right {% if entry.credit > 0 %}text-green{% endif %}">{% if entry.credit > 0 %}${{ entry.credit|floatformat:2 }}{% else %}—{% endif %}</td>
+                    <td class="text-right font-mono">${{ entry.running_balance|floatformat:2 }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="empty-state">No ledger entries yet</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div id="tab-invoices" class="tab-content">
+        <table>
+            <thead>
+                <tr>
+                    <th>Invoice ID</th>
+                    <th>Project</th>
+                    <th class="text-right">Amount</th>
+                    <th class="text-right">Paid</th>
+                    <th class="text-right">Remaining</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for inv in invoices %}
+                <tr>
+                    <td class="font-mono">{{ inv.invoice_id }}</td>
+                    <td>{{ inv.project.name|default:"—" }}</td>
+                    <td class="text-right">${{ inv.amount|floatformat:2 }}</td>
+                    <td class="text-right text-green">${{ inv.amount_paid|floatformat:2 }}</td>
+                    <td class="text-right text-red">${{ inv.remaining_amount|floatformat:2 }}</td>
+                    <td><span class="badge {% if inv.status == 'paid' %}badge-paid{% elif inv.status == 'partial' %}badge-partial{% else %}badge-unpaid{% endif %}">{{ inv.get_status_display }}</span></td>
+                    <td class="text-gray">{{ inv.invoice_date }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="empty-state">No invoices yet</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div id="tab-payments" class="tab-content">
+        <table>
+            <thead>
+                <tr>
+                    <th>Payment ID</th>
+                    <th>Invoice</th>
+                    <th>Project</th>
+                    <th class="text-right">Amount</th>
+                    <th>Method</th>
+                    <th>Date</th>
+                    <th>Reference</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pay in payments %}
+                <tr>
+                    <td class="font-mono">{{ pay.payment_id }}</td>
+                    <td>{{ pay.invoice.invoice_id|default:"—" }}</td>
+                    <td>{{ pay.project.name|default:"—" }}</td>
+                    <td class="text-right text-green">${{ pay.amount|floatformat:2 }}</td>
+                    <td>{{ pay.get_payment_method_display }}</td>
+                    <td class="text-gray">{{ pay.payment_date }}</td>
+                    <td class="text-gray">{{ pay.transaction_reference|default:"—" }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="empty-state">No payments yet</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+function showTab(tabName) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById('tab-' + tabName).classList.add('active');
+    event.target.classList.add('active');
+}
+</script>
+{% endblock %}

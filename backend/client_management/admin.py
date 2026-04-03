@@ -1,5 +1,9 @@
 from django.contrib import admin
+from django.urls import reverse
+from django.urls import path as url_path
 from django.utils.html import format_html
+from django.shortcuts import render, get_object_or_404
+from django.http import HttpResponse
 from django.utils import timezone
 from unfold.admin import ModelAdmin
 from unfold.contrib.filters.admin import RangeDateFilter
@@ -9,34 +13,36 @@ from .models import (
     Client, Project, ProjectService, TimeEntry, 
     Milestone, ClientDocument, ClientCommunication
 )
+from financial.models import ClientLedger, ClientBalance, Invoice, Payment
 
 @admin.register(Client)
 class ClientAdmin(ModelAdmin, ImportExportModelAdmin):
-    list_display = ['client_id', 'name', 'email', 'phone', 'client_type', 'status', 'total_projects', 'total_revenue_display', 'created_at']
-    list_filter = ['status', 'client_type', 'source', 'created_at']
-    search_fields = ['client_id', 'name', 'email', 'phone', 'company_name']
+    list_display = ['client_id', 'name', 'email', 'phone', 'status', 'total_projects', 'total_revenue_display', 'show_ledger_link']
+    list_filter = ['status', 'client_type']
+    search_fields = ['client_id', 'name', 'email', 'phone']
     list_editable = ['status']
     list_per_page = 20
-    raw_id_fields = ['created_by', 'assigned_to']
+    raw_id_fields = ['created_by']
+    
+    class Media:
+        css = {'all': ('admin/css/three-column-form.css',)}
     
     fieldsets = (
-        ('Client Identification', {
-            'fields': ('client_id', 'client_type', 'name', 'email', 'phone', 'alternative_phone')
+        ('Client Info', {
+            'fields': ('client_id', 'name', 'email'),
         }),
-        ('Business Information', {
-            'fields': ('company_name', 'website', 'industry', 'tax_id')
+        ('Contact & Tax', {
+            'fields': ('phone', 'tax_id', 'tax_rate'),
         }),
-        ('Address Information', {
-            'fields': ('billing_address', 'shipping_address', 'city', 'state', 'country', 'postal_code')
+        ('Services', {
+            'fields': ('subscribed_services',),
         }),
-        ('Contact Persons', {
-            'fields': ('primary_contact_name', 'primary_contact_designation', 'secondary_contact_name', 'secondary_contact_phone')
+        ('Status', {
+            'fields': ('client_type', 'status'),
         }),
-        ('Financial Information', {
-            'fields': ('credit_limit', 'payment_terms', 'tax_rate')
-        }),
-        ('Status & Tracking', {
-            'fields': ('status', 'source', 'assigned_to', 'notes')
+        ('Notes', {
+            'fields': ('notes',),
+            'classes': ('collapse',)
         }),
         ('Metadata', {
             'fields': ('created_by', 'created_at', 'updated_at'),
@@ -46,8 +52,45 @@ class ClientAdmin(ModelAdmin, ImportExportModelAdmin):
     
     readonly_fields = ['client_id', 'created_at', 'updated_at']
     
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            url_path('<int:client_id>/ledger/', self.admin_site.admin_view(self.client_ledger_view), name='client_ledger'),
+        ]
+        return custom_urls + urls
+    
+    def client_ledger_view(self, request, client_id):
+        client = get_object_or_404(Client, pk=client_id)
+        
+        balance, _ = ClientBalance.objects.get_or_create(client=client)
+        balance.recalculate()
+        
+        ledger_entries = ClientLedger.objects.filter(client=client).order_by('-transaction_date', '-created_at')
+        invoices = Invoice.objects.filter(client=client).order_by('-invoice_date')
+        payments = Payment.objects.filter(client=client).order_by('-payment_date')
+        
+        context = {
+            **self.admin_site.each_context(request),
+            'client': client,
+            'balance': balance,
+            'ledger_entries': ledger_entries,
+            'invoices': invoices,
+            'payments': payments,
+            'title': f'Ledger - {client.name}',
+        }
+        
+        return render(request, 'client_management/client_ledger.html', context)
+    
+    def show_ledger_link(self, obj):
+        url = reverse('admin:client_ledger', args=[obj.id])
+        return format_html(
+            '<a href="{}" style="background: #3b82f6; color: white; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500; display: inline-block;">Show Ledger</a>',
+            url
+        )
+    show_ledger_link.short_description = "Actions"
+    
     def total_revenue_display(self, obj):
-     return format_html('<b>${}</b>', "{:,.2f}".format(float(obj.total_revenue)))
+        return format_html('<b>${}</b>', "{:,.2f}".format(float(obj.total_revenue)))
     total_revenue_display.short_description = "Total Revenue"
     
     def total_projects(self, obj):
@@ -62,13 +105,17 @@ class ClientAdmin(ModelAdmin, ImportExportModelAdmin):
 
 @admin.register(Project)
 class ProjectAdmin(ModelAdmin):
-    list_display = ['project_id', 'name', 'client', 'project_type', 'status', 'priority', 'budget', 'progress_percentage_display', 'days_remaining']
-    list_filter = ['status', 'priority', 'project_type', 'start_date', ('estimated_end_date', DateRangeFilter)]
+    list_display = ['project_id', 'name', 'client', 'status', 'priority', 'budget', 'progress_percentage_display', 'days_remaining']
+    list_filter = ['status', 'priority', 'start_date', ('estimated_end_date', DateRangeFilter)]
     search_fields = ['project_id', 'name', 'client__name', 'client__email']
     list_editable = ['status', 'priority']
     list_per_page = 20
-    raw_id_fields = ['client', 'project_manager', 'created_by']
+    raw_id_fields = ['client', 'created_by']
+    autocomplete_fields = ['project_manager']
     filter_horizontal = ['team_members']
+    
+    class Media:
+        css = {'all': ('admin/css/three-column-form.css',)}
     
     def progress_percentage_display(self, obj):
         return format_html('<div style="width: 100px;"><progress value="{}" max="100" style="width: 100%;"></progress> {}%</div>', 
@@ -86,26 +133,27 @@ class ProjectAdmin(ModelAdmin):
     days_remaining.short_description = "Remaining"
     
     fieldsets = (
-        ('Basic Information', {
-            'fields': ('project_id', 'client', 'name', 'description', 'project_type')
+        ('Project Info', {
+            'fields': ('project_id', 'client', 'name'),
         }),
-        ('Status & Priority', {
-            'fields': ('status', 'priority')
+        ('Details', {
+            'fields': ('description', 'status', 'priority'),
         }),
-        ('Financial Details', {
-            'fields': ('budget', 'hourly_rate', 'total_cost')
+        ('Financial', {
+            'fields': ('budget',),
         }),
         ('Timeline', {
-            'fields': ('start_date', 'estimated_end_date', 'actual_end_date')
+            'fields': ('start_date', 'estimated_end_date', 'actual_end_date'),
         }),
-        ('Team Management', {
-            'fields': ('project_manager', 'team_members')
+        ('Team', {
+            'fields': ('project_manager', 'team_members'),
         }),
-        ('Progress Tracking', {
-            'fields': ('progress_percentage', 'completion_notes')
+        ('Progress', {
+            'fields': ('progress_percentage', 'completion_notes'),
         }),
-        ('Additional Information', {
-            'fields': ('tags', 'notes')
+        ('Additional', {
+            'fields': ('tags', 'notes'),
+            'classes': ('collapse',)
         }),
         ('Metadata', {
             'fields': ('created_by', 'created_at', 'updated_at'),
@@ -113,7 +161,7 @@ class ProjectAdmin(ModelAdmin):
         }),
     )
     
-    readonly_fields = ['project_id', 'total_cost', 'created_at', 'updated_at']
+    readonly_fields = ['project_id', 'created_at', 'updated_at']
     
     def save_model(self, request, obj, form, change):
         if not obj.pk:
