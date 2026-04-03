@@ -408,7 +408,13 @@ def create_ledger_on_invoice(sender, instance, created, **kwargs):
 
 @receiver(models.signals.post_delete, sender=Invoice)
 def cleanup_on_invoice_delete(sender, instance, **kwargs):
+    # Delete all ledger entries for this invoice
     ClientLedger.objects.filter(invoice=instance).delete()
+    
+    # Delete all payments for this invoice
+    Payment.objects.filter(invoice=instance).delete()
+    
+    # Delete all revenue records for this invoice
     Revenue.objects.filter(invoice=instance).delete()
 
     if instance.client:

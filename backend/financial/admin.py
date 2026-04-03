@@ -131,6 +131,15 @@ class InvoiceAdmin(ModelAdmin):
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     def save_model(self, request, obj, form, change):
+        from django.contrib import messages
+        if not obj.pk and obj.project and obj.amount > obj.project.remaining_budget:
+            self.message_user(
+                request,
+                f"Amount (${obj.amount}) cannot exceed project remaining balance (${obj.project.remaining_budget})",
+                level=messages.ERROR
+            )
+            return
+
         if not obj.pk:
             obj.created_by = request.user
             obj.payment_method = request.POST.get('payment_method', 'bank_transfer')

@@ -81,6 +81,12 @@ document.addEventListener('DOMContentLoaded', function() {
             var invoiced = parseFloat(data.total_invoiced);
             var remaining = parseFloat(data.remaining_budget);
 
+            // Set max attribute on amount field
+            if (amountField) {
+                amountField.setAttribute('max', data.remaining_budget);
+                amountField.setAttribute('title', 'Maximum allowed: $' + remaining.toLocaleString(undefined, {minimumFractionDigits: 2}));
+            }
+
             budgetDisplay.innerHTML = 
                 '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">' +
                 '<div><p style="margin: 0; font-size: 12px; color: #0369a1;">Total Budget</p>' +
@@ -108,6 +114,19 @@ document.addEventListener('DOMContentLoaded', function() {
         var projectId = this.value;
         loadProjectDetails(projectId);
     });
+
+    // Validate amount on form submit
+    var form = document.querySelector('form');
+    if (form && amountField) {
+        form.addEventListener('submit', function(e) {
+            var maxAmount = parseFloat(amountField.getAttribute('max'));
+            var entered = parseFloat(amountField.value);
+            if (maxAmount && entered > maxAmount) {
+                e.preventDefault();
+                alert('Amount ($' + entered.toFixed(2) + ') cannot exceed project remaining balance ($' + maxAmount.toFixed(2) + ')');
+            }
+        });
+    }
 
     // If editing an existing invoice and project is already selected
     var existingProject = projectField.value;
