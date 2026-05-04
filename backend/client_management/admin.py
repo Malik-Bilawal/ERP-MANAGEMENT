@@ -9,10 +9,17 @@ from unfold.admin import ModelAdmin
 from unfold.contrib.filters.admin import RangeDateFilter
 from rangefilter.filters import DateRangeFilter
 from import_export.admin import ImportExportModelAdmin
+from unfold.admin import TabularInline
 from .models import (
     Client, Project, ProjectService, TimeEntry, 
     Milestone, ClientDocument, ClientCommunication
 )
+
+try:
+    from hr.admin import ProjectAssignmentInline, ProjectManagerInline
+except ImportError:
+    ProjectAssignmentInline = None
+    ProjectManagerInline = None
 from financial.models import ClientLedger, ClientBalance, Invoice, Payment
 
 @admin.register(Client)
@@ -114,6 +121,14 @@ class ProjectAdmin(ModelAdmin):
     autocomplete_fields = ['project_manager']
     filter_horizontal = ['team_members']
     
+    def get_inlines(self, request, obj=None):
+        inlines = []
+        if ProjectAssignmentInline:
+            inlines.append(ProjectAssignmentInline)
+        if ProjectManagerInline:
+            inlines.append(ProjectManagerInline)
+        return inlines
+    
     class Media:
         css = {'all': ('admin/css/three-column-form.css',)}
     
@@ -127,7 +142,7 @@ class ProjectAdmin(ModelAdmin):
         if days < 0:
             return format_html('<span style="color: red;">{} days overdue</span>', abs(days))
         elif days == 0:
-            return format_html('<span style="color: orange;">Due today</span>')
+            return format_html('<span style="color: orange;">{}</span>', 'Due today')
         else:
             return format_html('<span style="color: green;">{} days</span>', days)
     days_remaining.short_description = "Remaining"

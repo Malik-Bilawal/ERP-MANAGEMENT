@@ -1,0 +1,130 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 1400px; margin: 0 auto; padding: 20px;">
+    <h1 style="margin-bottom: 24px;">{{ title }}</h1>
+    
+    <!-- Top Stats Row -->
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 12px; padding: 20px;">
+            <p style="margin: 0; font-size: 12px; opacity: 0.9;">Active Employees</p>
+            <p style="margin: 8px 0 0; font-size: 32px; font-weight: bold;">{{ active_employees }}</p>
+            <p style="margin: 4px 0 0; font-size: 12px; opacity: 0.8;">of {{ total_employees }} total</p>
+        </div>
+        <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; border-radius: 12px; padding: 20px;">
+            <p style="margin: 0; font-size: 12px; opacity: 0.9;">Monthly Salary Cost</p>
+            <p style="margin: 8px 0 0; font-size: 28px; font-weight: bold;">${{ total_monthly_salary|floatformat:2 }}</p>
+        </div>
+        <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border-radius: 12px; padding: 20px;">
+            <p style="margin: 0; font-size: 12px; opacity: 0.9;">Active Projects</p>
+            <p style="margin: 8px 0 0; font-size: 32px; font-weight: bold;">{{ active_projects }}</p>
+            <p style="margin: 4px 0 0; font-size: 12px; opacity: 0.8;">of {{ total_projects }} total</p>
+        </div>
+        <div style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white; border-radius: 12px; padding: 20px;">
+            <p style="margin: 0; font-size: 12px; opacity: 0.9;">Assignments</p>
+            <p style="margin: 8px 0 0; font-size: 32px; font-weight: bold;">{{ total_assignments }}</p>
+            <p style="margin: 4px 0 0; font-size: 12px; opacity: 0.8;">{{ total_managers }} managers</p>
+        </div>
+    </div>
+    
+    <!-- Financial Row -->
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px;">
+        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px;">
+            <p style="margin: 0; font-size: 12px; color: #166534;">Revenue (Last 7 Days)</p>
+            <p style="margin: 8px 0 0; font-size: 28px; font-weight: bold; color: #14532d;">${{ total_revenue|floatformat:2 }}</p>
+        </div>
+        <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 20px;">
+            <p style="margin: 0; font-size: 12px; color: #991b1b;">Expenses (Last 7 Days)</p>
+            <p style="margin: 8px 0 0; font-size: 28px; font-weight: bold; color: #7f1d1d;">${{ total_expenses|floatformat:2 }}</p>
+        </div>
+        <div style="background: {% if net_profit >= 0 %}#f0fdf4{% else %}#fef2f2{% endif %}; border: 1px solid {% if net_profit >= 0 %}#bbf7d0{% else %}#fecaca{% endif %}; border-radius: 12px; padding: 20px;">
+            <p style="margin: 0; font-size: 12px; color: {% if net_profit >= 0 %}#166534{% else %}#991b1b{% endif %};">Net Profit</p>
+            <p style="margin: 8px 0 0; font-size: 28px; font-weight: bold; color: {% if net_profit >= 0 %}#14532d{% else %}#7f1d1d{% endif %};">${{ net_profit|floatformat:2 }}</p>
+        </div>
+    </div>
+    
+    <!-- This Month Row -->
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px;">
+        <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px;">
+            <p style="margin: 0; font-size: 12px; color: #6b7280;">Salary Paid This Month</p>
+            <p style="margin: 8px 0 0; font-size: 24px; font-weight: bold; color: #1f2937;">${{ salary_this_month|floatformat:2 }}</p>
+        </div>
+        <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px;">
+            <p style="margin: 0; font-size: 12px; color: #6b7280;">Expenses This Month</p>
+            <p style="margin: 8px 0 0; font-size: 24px; font-weight: bold; color: #1f2937;">${{ expenses_this_month|floatformat:2 }}</p>
+        </div>
+        <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px;">
+            <p style="margin: 0; font-size: 12px; color: #6b7280;">Active Benefits</p>
+            <p style="margin: 8px 0 0; font-size: 24px; font-weight: bold; color: #1f2937;">{{ active_benefits }}</p>
+            <p style="margin: 4px 0 0; font-size: 12px; color: #9ca3af;">Used: ${{ total_benefit_used|floatformat:2 }} / ${{ total_benefit_limit|floatformat:2 }}</p>
+        </div>
+    </div>
+    
+    <!-- Employee Utilization -->
+    <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+        <h2 style="margin: 0 0 16px; font-size: 18px;">Employee Utilization</h2>
+        {% if employee_utilization %}
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="border-bottom: 2px solid #e5e7eb;">
+                    <th style="padding: 12px; text-align: left;">Employee</th>
+                    <th style="padding: 12px; text-align: center;">Projects</th>
+                    <th style="padding: 12px; text-align: center;">Hours/Week</th>
+                    <th style="padding: 12px; text-align: center;">Utilization</th>
+                    <th style="padding: 12px; text-align: left; width: 200px;">Progress</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for emp in employee_utilization %}
+                <tr style="border-bottom: 1px solid #f3f4f6;">
+                    <td style="padding: 12px;">
+                        <a href="/admin/hr/employee/{{ emp.employee.id }}/change/" style="text-decoration: none; color: #3b82f6; font-weight: 500;">{{ emp.employee.full_name }}</a>
+                    </td>
+                    <td style="padding: 12px; text-align: center;">{{ emp.projects }}</td>
+                    <td style="padding: 12px; text-align: center;">{{ emp.hours }}h</td>
+                    <td style="padding: 12px; text-align: center; font-weight: bold; color: {% if emp.utilization > 100 %}#e74c3c{% elif emp.utilization > 80 %}#f39c12{% else %}#2ecc71{% endif %};">{{ emp.utilization|floatformat:0 }}%</td>
+                    <td style="padding: 12px;">
+                        <div style="background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden;">
+                            <div style="background: {% if emp.utilization > 100 %}#e74c3c{% elif emp.utilization > 80 %}#f39c12{% else %}#2ecc71{% endif %}; height: 100%; width: {% if emp.utilization > 100 %}100{% else %}{{ emp.utilization|floatformat:0 }}{% endif %}%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color: #6b7280; text-align: center; padding: 20px;">No active project assignments yet.</p>
+        {% endif %}
+    </div>
+    
+    <!-- Recent Revenue Trend -->
+    {% if recent_revenue %}
+    <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px;">
+        <h2 style="margin: 0 0 16px; font-size: 18px;">Revenue Trend (Last 7 Days)</h2>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="border-bottom: 2px solid #e5e7eb;">
+                    <th style="padding: 12px; text-align: left;">Date</th>
+                    <th style="padding: 12px; text-align: right;">Revenue</th>
+                    <th style="padding: 12px; text-align: right;">Expenses</th>
+                    <th style="padding: 12px; text-align: right;">Net</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for day in recent_revenue %}
+                <tr style="border-bottom: 1px solid #f3f4f6;">
+                    <td style="padding: 12px;">{{ day.date }}</td>
+                    <td style="padding: 12px; text-align: right; color: #2ecc71; font-weight: bold;">${{ day.total_revenue|floatformat:2 }}</td>
+                    <td style="padding: 12px; text-align: right; color: #e74c3c;">${{ day.total_expenses|floatformat:2 }}</td>
+                    <td style="padding: 12px; text-align: right; font-weight: bold; color: {% if day.net_profit >= 0 %}#2ecc71{% else %}#e74c3c{% endif %};">${{ day.net_profit|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

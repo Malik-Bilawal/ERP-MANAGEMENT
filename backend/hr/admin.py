@@ -1,8 +1,37 @@
+from decimal import Decimal
 from django.contrib import admin
+from django.urls import reverse
+from django.urls import path as url_path
 from django.utils.html import format_html
 from django.db.models import Sum
-from unfold.admin import ModelAdmin
-from .models import EmployeeRole, Employee, SalaryPayment, SalaryRecord, ExpenseCategory, MonthlyExpensePlan, ActualExpense
+from django.shortcuts import render, get_object_or_404
+from unfold.admin import ModelAdmin, TabularInline
+from .models import (
+    EmployeeRole, Employee, SalaryPayment, SalaryRecord, 
+    ExpenseCategory, MonthlyExpensePlan, ActualExpense,
+    ProjectAssignment, ProjectManager, EmployeeBenefit, EmployeeLedger
+)
+
+
+class ProjectAssignmentInline(TabularInline):
+    model = ProjectAssignment
+    extra = 1
+    fields = ('employee', 'role_on_project', 'hours_per_week', 'is_primary', 'start_date', 'end_date', 'is_active')
+    autocomplete_fields = ['employee']
+
+
+class ProjectManagerInline(TabularInline):
+    model = ProjectManager
+    extra = 1
+    fields = ('employee', 'assigned_date', 'is_active')
+    autocomplete_fields = ['employee']
+
+
+class EmployeeBenefitInline(TabularInline):
+    model = EmployeeBenefit
+    extra = 1
+    fields = ('benefit_type', 'annual_limit', 'used_amount', 'start_date', 'end_date', 'is_active')
+    readonly_fields = ['used_amount']
 
 
 @admin.register(ExpenseCategory)
@@ -76,7 +105,7 @@ class EmployeeRoleAdmin(ModelAdmin):
 
 @admin.register(Employee)
 class EmployeeAdmin(ModelAdmin):
-    list_display = ['employee_id', 'full_name_display', 'email', 'role_display', 'salary_display', 'employment_type_display', 'joining_date', 'status_badge']
+    list_display = ['employee_id', 'full_name_display', 'email', 'role_display', 'salary_display', 'employment_type_display', 'joining_date', 'status_badge', 'show_ledger_link']
     list_filter = ['employment_type', 'role', 'is_active', 'joining_date']
     search_fields = ['employee_id', 'first_name', 'last_name', 'email', 'phone']
     readonly_fields = ['employee_id', 'created_at', 'updated_at']
@@ -132,6 +161,49 @@ class EmployeeAdmin(ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+    inlines = [EmployeeBenefitInline]
+    
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            url_path('<int:employee_id>/ledger/', self.admin_site.admin_view(self.employee_ledger_view), name='employee_ledger'),
+        ]
+        return custom_urls + urls
+    
+    def employee_ledger_view(self, request, employee_id):
+        employee = get_object_or_404(Employee, pk=employee_id)
+        
+        ledger_entries = EmployeeLedger.objects.filter(employee=employee).order_by('-transaction_date', '-created_at')
+        salary_payments = SalaryPayment.objects.filter(employee=employee).order_by('-payment_date')
+        expenses = ActualExpense.objects.filter(employee=employee).order_by('-expense_date')
+        benefits = EmployeeBenefit.objects.filter(employee=employee, is_active=True)
+        
+        total_earned = ledger_entries.filter(transaction_type='salary').aggregate(total=Sum('debit'))['total'] or Decimal('0.00')
+        total_paid = ledger_entries.filter(transaction_type='salary').aggregate(total=Sum('credit'))['total'] or Decimal('0.00')
+        pending = total_earned - total_paid
+        
+        context = {
+            **self.admin_site.each_context(request),
+            'employee': employee,
+            'ledger_entries': ledger_entries,
+            'salary_payments': salary_payments,
+            'expenses': expenses,
+            'benefits': benefits,
+            'total_earned': total_earned,
+            'total_paid': total_paid,
+            'pending': pending,
+            'title': f'Ledger - {employee.full_name}',
+        }
+        
+        return render(request, 'hr/employee_ledger.html', context)
+    
+    def show_ledger_link(self, obj):
+        url = reverse('admin:employee_ledger', args=[obj.id])
+        return format_html(
+            '<a href="{}" style="background: #3b82f6; color: white; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500; display: inline-block;">Show Ledger</a>',
+            url
+        )
+    show_ledger_link.short_description = "Actions"
 
 
 @admin.register(SalaryPayment)
@@ -167,7 +239,7 @@ class SalaryPaymentAdmin(ModelAdmin):
         remaining = float(obj.employee.salary) - float(paid) - float(obj.amount)
         if remaining > 0:
             return format_html('<span style="color: #e74c3c;">${}</span>', "{:,.2f}".format(remaining))
-        return format_html('<span style="color: #2ecc71;">Paid</span>')
+        return format_html('<span style="color: #2ecc71;">{}</span>', 'Paid')
     remaining_display.short_description = "After This"
     
     def month_display(self, obj):
@@ -318,3 +390,206 @@ class ActualExpenseAdmin(ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+
+@admin.register(ProjectAssignment)
+class ProjectAssignmentAdmin(ModelAdmin):
+    list_display = ['assignment_id', 'employee_link', 'project_link', 'role_on_project', 'hours_per_week', 'is_primary', 'is_active', 'start_date']
+    list_filter = ['is_active', 'is_primary', 'start_date']
+    search_fields = ['employee__first_name', 'employee__last_name', 'project__name']
+    readonly_fields = ['assignment_id', 'created_at', 'updated_at']
+    autocomplete_fields = ['employee']
+    list_per_page = 20
+    
+    def employee_link(self, obj):
+        url = reverse('admin:hr_employee_change', args=[obj.employee.id])
+        return format_html('<a href="{}">{}</a>', url, obj.employee.full_name)
+    employee_link.short_description = "Employee"
+    
+    def project_link(self, obj):
+        url = reverse('admin:client_management_project_change', args=[obj.project.id])
+        return format_html('<a href="{}">{}</a>', url, obj.project.name)
+    project_link.short_description = "Project"
+
+
+@admin.register(ProjectManager)
+class ProjectManagerAdmin(ModelAdmin):
+    list_display = ['employee_link', 'project_link', 'assigned_date', 'is_active']
+    list_filter = ['is_active', 'assigned_date']
+    search_fields = ['employee__first_name', 'employee__last_name', 'project__name']
+    readonly_fields = ['created_at', 'updated_at']
+    autocomplete_fields = ['employee']
+    list_per_page = 20
+    
+    def employee_link(self, obj):
+        url = reverse('admin:hr_employee_change', args=[obj.employee.id])
+        return format_html('<a href="{}">{}</a>', url, obj.employee.full_name)
+    employee_link.short_description = "Employee"
+    
+    def project_link(self, obj):
+        url = reverse('admin:client_management_project_change', args=[obj.project.id])
+        return format_html('<a href="{}">{}</a>', url, obj.project.name)
+    project_link.short_description = "Project"
+
+
+@admin.register(EmployeeBenefit)
+class EmployeeBenefitAdmin(ModelAdmin):
+    list_display = ['benefit_id', 'employee_link', 'benefit_type_display', 'annual_limit_display', 'used_amount_display', 'remaining_display', 'utilization_display', 'is_active']
+    list_filter = ['benefit_type', 'is_active', 'start_date']
+    search_fields = ['employee__first_name', 'employee__last_name', 'description']
+    readonly_fields = ['benefit_id', 'used_amount', 'remaining_display', 'utilization_display', 'created_at', 'updated_at']
+    list_per_page = 20
+    
+    def employee_link(self, obj):
+        url = reverse('admin:hr_employee_change', args=[obj.employee.id])
+        return format_html('<a href="{}">{}</a>', url, obj.employee.full_name)
+    employee_link.short_description = "Employee"
+    
+    def benefit_type_display(self, obj):
+        return obj.get_benefit_type_display()
+    benefit_type_display.short_description = "Type"
+    
+    def annual_limit_display(self, obj):
+        return format_html('<span style="font-weight: bold;">${}</span>', "{:,.2f}".format(float(obj.annual_limit)))
+    annual_limit_display.short_description = "Annual Limit"
+    
+    def used_amount_display(self, obj):
+        return format_html('<span style="color: #e74c3c;">${}</span>', "{:,.2f}".format(float(obj.used_amount)))
+    used_amount_display.short_description = "Used"
+    
+    def remaining_display(self, obj):
+        remaining = obj.remaining
+        color = '#2ecc71' if remaining > 0 else '#e74c3c'
+        return format_html('<span style="color: {}; font-weight: bold;">${}</span>', color, "{:,.2f}".format(float(remaining)))
+    remaining_display.short_description = "Remaining"
+    
+    def utilization_display(self, obj):
+        pct = obj.utilization_percentage
+        color = '#e74c3c' if pct > 80 else '#f39c12' if pct > 50 else '#2ecc71'
+        return format_html('<span style="color: {}; font-weight: bold;">{}%</span>', color, "{:.1f}".format(float(pct)))
+    utilization_display.short_description = "Usage %"
+
+
+@admin.register(EmployeeLedger)
+class EmployeeLedgerAdmin(ModelAdmin):
+    list_display = ['employee_link', 'transaction_type_display', 'description', 'debit_display', 'credit_display', 'running_balance_display', 'transaction_date']
+    list_filter = ['transaction_type', 'transaction_date']
+    search_fields = ['employee__first_name', 'employee__last_name', 'description']
+    readonly_fields = ['created_at']
+    list_per_page = 20
+    date_hierarchy = 'transaction_date'
+    
+    def employee_link(self, obj):
+        url = reverse('admin:hr_employee_change', args=[obj.employee.id])
+        return format_html('<a href="{}">{}</a>', url, obj.employee.full_name)
+    employee_link.short_description = "Employee"
+    
+    def transaction_type_display(self, obj):
+        return obj.get_transaction_type_display()
+    transaction_type_display.short_description = "Type"
+    
+    def debit_display(self, obj):
+        if obj.debit > 0:
+            return format_html('<span style="color: #e74c3c;">${}</span>', "{:,.2f}".format(float(obj.debit)))
+        return "-"
+    debit_display.short_description = "Debit"
+    
+    def credit_display(self, obj):
+        if obj.credit > 0:
+            return format_html('<span style="color: #2ecc71;">${}</span>', "{:,.2f}".format(float(obj.credit)))
+        return "-"
+    credit_display.short_description = "Credit"
+    
+    def running_balance_display(self, obj):
+        color = '#e74c3c' if obj.running_balance > 0 else '#2ecc71'
+        return format_html('<span style="color: {}; font-weight: bold;">${}</span>', color, "{:,.2f}".format(float(obj.running_balance)))
+    running_balance_display.short_description = "Balance"
+
+
+class HRDashboardAdmin(ModelAdmin):
+    """Custom admin view for HR Dashboard"""
+    
+    def get_urls(self):
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            url_path('dashboard/', self.admin_site.admin_view(self.dashboard_view), name='hr_dashboard'),
+        ]
+        return custom_urls + urls
+    
+    def dashboard_view(self, request):
+        from django.db.models import Count, Avg
+        from client_management.models import Project
+        from financial.models import CompanyRevenue
+        
+        today = timezone.now().date()
+        
+        active_employees = Employee.objects.filter(is_active=True).count()
+        total_employees = Employee.objects.count()
+        total_monthly_salary = Employee.objects.filter(is_active=True).aggregate(total=Sum('salary'))['total'] or Decimal('0.00')
+        
+        active_projects = Project.objects.filter(status='in_progress').count()
+        total_projects = Project.objects.count()
+        
+        total_assignments = ProjectAssignment.objects.filter(is_active=True).count()
+        total_managers = ProjectManager.objects.filter(is_active=True).count()
+        
+        active_benefits = EmployeeBenefit.objects.filter(is_active=True).count()
+        total_benefit_limit = EmployeeBenefit.objects.filter(is_active=True).aggregate(total=Sum('annual_limit'))['total'] or Decimal('0.00')
+        total_benefit_used = EmployeeBenefit.objects.filter(is_active=True).aggregate(total=Sum('used_amount'))['total'] or Decimal('0.00')
+        
+        salary_this_month = SalaryPayment.objects.filter(
+            status='completed',
+            payment_date__month=today.month,
+            payment_date__year=today.year
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        expenses_this_month = ActualExpense.objects.filter(
+            status='completed',
+            expense_date__month=today.month,
+            expense_date__year=today.year
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        recent_revenue = list(CompanyRevenue.objects.order_by('-date')[:7])
+        total_revenue = sum(r.total_revenue for r in recent_revenue)
+        total_expenses = sum(r.total_expenses for r in recent_revenue)
+        net_profit = total_revenue - total_expenses
+        
+        employee_utilization = []
+        for emp in Employee.objects.filter(is_active=True)[:10]:
+            assignments = ProjectAssignment.objects.filter(employee=emp, is_active=True)
+            total_hours = assignments.aggregate(total=Sum('hours_per_week'))['total'] or 0
+            utilization = min((total_hours / 40) * 100, 100) if total_hours > 0 else 0
+            employee_utilization.append({
+                'employee': emp,
+                'hours': total_hours,
+                'utilization': utilization,
+                'projects': assignments.count(),
+            })
+        
+        context = {
+            **self.admin_site.each_context(request),
+            'active_employees': active_employees,
+            'total_employees': total_employees,
+            'total_monthly_salary': total_monthly_salary,
+            'active_projects': active_projects,
+            'total_projects': total_projects,
+            'total_assignments': total_assignments,
+            'total_managers': total_managers,
+            'active_benefits': active_benefits,
+            'total_benefit_limit': total_benefit_limit,
+            'total_benefit_used': total_benefit_used,
+            'salary_this_month': salary_this_month,
+            'expenses_this_month': expenses_this_month,
+            'recent_revenue': recent_revenue,
+            'total_revenue': total_revenue,
+            'total_expenses': total_expenses,
+            'net_profit': net_profit,
+            'employee_utilization': employee_utilization,
+            'title': 'HR Dashboard',
+        }
+        
+        return render(request, 'hr/dashboard.html', context)
+
+
+admin.site.register_view = lambda *args, **kwargs: lambda f: f

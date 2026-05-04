@@ -1,4 +1,7 @@
 from django.db import models
+from django.db.models import Sum
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.core.validators import MinValueValidator
@@ -501,3 +504,278 @@ class ActualExpense(models.Model):
             from financial.models import CompanyRevenue
             CompanyRevenue.update_daily(self.expense_date)
             CompanyRevenue.update_daily(timezone.now().date())
+
+
+class ProjectAssignment(models.Model):
+    """Assign employees to projects with role and time allocation"""
+    
+    assignment_id = models.CharField(max_length=20, unique=True, editable=False)
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='project_assignments')
+    project = models.ForeignKey('client_management.Project', on_delete=models.CASCADE, related_name='employee_assignments')
+    
+    role_on_project = models.CharField(max_length=100, help_text="Role on this project (e.g., Lead Developer)")
+    hours_per_week = models.PositiveIntegerField(default=40, help_text="Hours allocated per week")
+    is_primary = models.BooleanField(default=False, help_text="Is this the employee's primary project?")
+    
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True, help_text="Leave blank if ongoing")
+    is_active = models.BooleanField(default=True)
+    
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-start_date']
+        verbose_name = "Project Assignment"
+        verbose_name_plural = "Project Assignments"
+        indexes = [
+            models.Index(fields=['employee', 'is_active']),
+            models.Index(fields=['project', 'is_active']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['employee', 'project'],
+                condition=models.Q(is_active=True),
+                name='unique_active_assignment_per_project'
+            )
+        ]
+    
+    def __str__(self):
+        return f"{self.employee.full_name} -> {self.project.name} ({self.role_on_project})"
+    
+    def save(self, *args, **kwargs):
+        if not self.assignment_id:
+            year = timezone.now().year
+            count = ProjectAssignment.objects.filter(start_date__year=year).count() + 1
+            self.assignment_id = f"PA-{year}-{count:06d}"
+        super().save(*args, **kwargs)
+    
+    @property
+    def employee_utilization(self):
+        """Calculate employee utilization % across all active assignments"""
+        total_hours = ProjectAssignment.objects.filter(
+            employee=self.employee, is_active=True
+        ).aggregate(total=models.Sum('hours_per_week'))['total'] or 0
+        return min((total_hours / 40) * 100, 100)
+
+
+class ProjectManager(models.Model):
+    """Assign employees as project managers"""
+    
+    project = models.ForeignKey('client_management.Project', on_delete=models.CASCADE, related_name='project_managers')
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='managed_projects_hr')
+    
+    assigned_date = models.DateField(default=timezone.now)
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True, null=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['assigned_date']
+        verbose_name = "Project Manager"
+        verbose_name_plural = "Project Managers"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['project', 'employee'],
+                name='unique_project_manager'
+            )
+        ]
+    
+    def __str__(self):
+        return f"{self.employee.full_name} -> {self.project.name}"
+
+
+class EmployeeBenefit(models.Model):
+    """Employee benefits packages (travel, medical, training, etc.)"""
+    
+    BENEFIT_TYPES = [
+        ('travel', 'Travel Allowance'),
+        ('medical', 'Medical/Health Insurance'),
+        ('training', 'Training/Certification'),
+        ('phone', 'Phone/Internet Reimbursement'),
+        ('equipment', 'Equipment Allowance'),
+        ('other', 'Other Benefit'),
+    ]
+    
+    benefit_id = models.CharField(max_length=20, unique=True, editable=False)
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='benefits')
+    benefit_type = models.CharField(max_length=20, choices=BENEFIT_TYPES)
+    
+    annual_limit = models.DecimalField(max_digits=15, decimal_places=2, validators=[MinValueValidator(Decimal('0.00'))])
+    used_amount = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
+    
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True, help_text="Leave blank for ongoing")
+    is_active = models.BooleanField(default=True)
+    
+    description = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-start_date', 'employee']
+        verbose_name = "Employee Benefit"
+        verbose_name_plural = "Employee Benefits"
+        indexes = [
+            models.Index(fields=['employee', 'benefit_type', 'is_active']),
+            models.Index(fields=['benefit_type', 'is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.employee.full_name} - {self.get_benefit_type_display()} (${self.annual_limit})"
+    
+    def save(self, *args, **kwargs):
+        if not self.benefit_id:
+            year = timezone.now().year
+            count = EmployeeBenefit.objects.filter(start_date__year=year).count() + 1
+            self.benefit_id = f"BEN-{year}-{count:06d}"
+        super().save(*args, **kwargs)
+    
+    @property
+    def remaining(self):
+        return max(self.annual_limit - self.used_amount, Decimal('0.00'))
+    
+    @property
+    def utilization_percentage(self):
+        if self.annual_limit == 0:
+            return Decimal('0.00')
+        return (self.used_amount / self.annual_limit) * 100
+    
+    def recalculate_used(self):
+        """Recalculate used_amount from completed expenses linked to this benefit"""
+        from django.db.models import Sum
+        total_used = ActualExpense.objects.filter(
+            employee=self.employee,
+            category__expense_type=self.benefit_type,
+            status='completed',
+            expense_date__gte=self.start_date,
+            expense_date__lte=self.end_date if self.end_date else timezone.now().date()
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        self.used_amount = total_used
+        self.save(update_fields=['used_amount'])
+
+
+class EmployeeLedger(models.Model):
+    """Per-employee financial transaction ledger"""
+    
+    TRANSACTION_TYPES = [
+        ('salary', 'Salary Payment'),
+        ('bonus', 'Bonus'),
+        ('benefit', 'Benefit Used'),
+        ('expense', 'Expense Reimbursement'),
+        ('adjustment', 'Manual Adjustment'),
+    ]
+    
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='ledger_entries')
+    
+    transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPES)
+    description = models.CharField(max_length=255)
+    
+    debit = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'), help_text="Amount owed to employee")
+    credit = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'), help_text="Amount paid to employee")
+    
+    running_balance = models.DecimalField(max_digits=15, decimal_places=2, help_text="Pending balance after this entry")
+    
+    transaction_date = models.DateField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    # Optional references
+    salary_payment = models.ForeignKey(SalaryPayment, on_delete=models.SET_NULL, null=True, blank=True, related_name='ledger_entries')
+    expense = models.ForeignKey(ActualExpense, on_delete=models.SET_NULL, null=True, blank=True, related_name='ledger_entries')
+    
+    class Meta:
+        ordering = ['transaction_date', 'created_at']
+        verbose_name = "Employee Ledger Entry"
+        verbose_name_plural = "Employee Ledger Entries"
+        indexes = [
+            models.Index(fields=['employee', 'transaction_date']),
+            models.Index(fields=['employee', 'transaction_type']),
+        ]
+    
+    def __str__(self):
+        return f"{self.employee.full_name} - {self.description} - ${self.debit or self.credit}"
+
+
+# ========== SIGNALS ==========
+
+@receiver(models.signals.post_save, sender=SalaryPayment)
+def create_ledger_on_salary_payment(sender, instance, created, **kwargs):
+    if created and instance.status == 'completed':
+        total_debit = EmployeeLedger.objects.filter(employee=instance.employee, transaction_type='salary').aggregate(
+            total=Sum('debit')
+        )['total'] or Decimal('0.00')
+        total_credit_before = EmployeeLedger.objects.filter(
+            employee=instance.employee, transaction_type='salary'
+        ).aggregate(total=Sum('credit'))['total'] or Decimal('0.00')
+        
+        month_display = instance.month
+        if isinstance(month_display, str):
+            from datetime import datetime
+            month_display = datetime.strptime(month_display, '%Y-%m-%d').date()
+        
+        EmployeeLedger.objects.create(
+            employee=instance.employee,
+            transaction_type='salary',
+            description=f"Salary payment {instance.payment_id} for {month_display.strftime('%B %Y')}",
+            credit=instance.amount,
+            running_balance=total_debit - (total_credit_before + instance.amount),
+            transaction_date=instance.payment_date or month_display,
+            salary_payment=instance,
+        )
+        
+        # Update company revenue
+        if instance.payment_date:
+            from financial.models import CompanyRevenue
+            CompanyRevenue.update_daily(instance.payment_date)
+            CompanyRevenue.update_daily(timezone.now().date())
+
+
+@receiver(models.signals.post_save, sender=ActualExpense)
+def create_ledger_on_expense(sender, instance, created, **kwargs):
+    if created and instance.employee and instance.status == 'completed':
+        total_debit = EmployeeLedger.objects.filter(employee=instance.employee).aggregate(total=Sum('debit'))['total'] or Decimal('0.00')
+        total_credit = EmployeeLedger.objects.filter(employee=instance.employee).aggregate(total=Sum('credit'))['total'] or Decimal('0.00')
+        
+        EmployeeLedger.objects.create(
+            employee=instance.employee,
+            transaction_type='expense',
+            description=f"Expense {instance.expense_id} - {instance.category.name}",
+            debit=instance.amount,
+            running_balance=total_debit + instance.amount - total_credit,
+            transaction_date=instance.expense_date,
+            expense=instance,
+        )
+        
+        # Update employee benefits used amount
+        EmployeeBenefit.objects.filter(
+            employee=instance.employee,
+            benefit_type=instance.category.expense_type,
+            is_active=True
+        ).update(used_amount=Decimal('0.00'))
+        
+        for benefit in EmployeeBenefit.objects.filter(
+            employee=instance.employee,
+            benefit_type=instance.category.expense_type,
+            is_active=True
+        ):
+            benefit.recalculate_used()
+
+
+@receiver(models.signals.post_save, sender=EmployeeBenefit)
+def create_ledger_on_benefit(sender, instance, created, **kwargs):
+    if created:
+        total_debit = EmployeeLedger.objects.filter(employee=instance.employee).aggregate(total=Sum('debit'))['total'] or Decimal('0.00')
+        total_credit = EmployeeLedger.objects.filter(employee=instance.employee).aggregate(total=Sum('credit'))['total'] or Decimal('0.00')
+        
+        EmployeeLedger.objects.create(
+            employee=instance.employee,
+            transaction_type='benefit',
+            description=f"Benefit {instance.benefit_id} - {instance.get_benefit_type_display()} (${instance.annual_limit})",
+            debit=instance.annual_limit,
+            running_balance=total_debit + instance.annual_limit - total_credit,
+            transaction_date=instance.start_date,
+        )

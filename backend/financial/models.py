@@ -234,7 +234,8 @@ class ClientBalance(models.Model):
         verbose_name_plural = "Client Balances"
 
     def recalculate(self):
-        total_cost = Project.objects.filter(client=self.client).aggregate(total=models.Sum('budget'))['total'] or Decimal('0.00')
+        # Only count projects that have invoices for billing purposes
+        total_cost = Invoice.objects.filter(client=self.client).aggregate(total=models.Sum('amount'))['total'] or Decimal('0.00')
         total_paid = Payment.objects.filter(client=self.client).aggregate(total=models.Sum('amount'))['total'] or Decimal('0.00')
 
         self.total_projects_cost = total_cost
@@ -302,13 +303,15 @@ class CompanyRevenue(models.Model):
 
     @classmethod
     def update_daily(cls, date=None):
-        from hr.models import Employee, SalaryPayment
+        from hr.models import Employee, SalaryPayment, ActualExpense
 
         if not date:
             date = timezone.now().date()
 
         total_revenue = Revenue.objects.filter(revenue_date=date).aggregate(total=models.Sum('amount'))['total'] or Decimal('0.00')
-        total_expenses = SalaryPayment.objects.filter(status='completed', payment_date=date).aggregate(total=models.Sum('amount'))['total'] or Decimal('0.00')
+        salary_expenses = SalaryPayment.objects.filter(status='completed', payment_date=date).aggregate(total=models.Sum('amount'))['total'] or Decimal('0.00')
+        other_expenses = ActualExpense.objects.filter(status='completed', expense_date=date).aggregate(total=models.Sum('amount'))['total'] or Decimal('0.00')
+        total_expenses = salary_expenses + other_expenses
         net_profit = total_revenue - total_expenses
 
         summary, created = cls.objects.update_or_create(
@@ -344,8 +347,12 @@ def create_revenue_and_ledger_on_payment(sender, instance, created, **kwargs):
         )
 
         if instance.client:
-            balance = ClientBalance.objects.filter(client=instance.client).first()
-            running_bal = balance.pending_balance if balance else Decimal('0.00')
+            # Recalculate client balance first
+            balance, _ = ClientBalance.objects.get_or_create(client=instance.client)
+            balance.recalculate()
+            
+            # The running_balance should be the balance AFTER this payment
+            running_bal = balance.pending_balance
 
             ClientLedger.objects.create(
                 client=instance.client,
@@ -359,7 +366,7 @@ def create_revenue_and_ledger_on_payment(sender, instance, created, **kwargs):
                 transaction_date=instance.payment_date,
             )
 
-            # Recalculate client balance
+            # Recalculate client balance after payment is added
             balance, _ = ClientBalance.objects.get_or_create(client=instance.client)
             balance.recalculate()
 
@@ -388,10 +395,21 @@ def cleanup_on_payment_delete(sender, instance, **kwargs):
 
 
 @receiver(models.signals.post_save, sender=Invoice)
-def create_ledger_on_invoice(sender, instance, created, **kwargs):
-    if created and instance.client:
-        balance, _ = ClientBalance.objects.get_or_create(client=instance.client)
-
+def update_ledger_on_invoice(sender, instance, created, **kwargs):
+    if not instance.client:
+        return
+    
+    balance, _ = ClientBalance.objects.get_or_create(client=instance.client)
+    balance.recalculate()
+    
+    if created:
+        # Get the current total invoiced BEFORE adding this new invoice
+        existing_total = Invoice.objects.exclude(pk=instance.pk).filter(client=instance.client).aggregate(total=models.Sum('amount'))['total'] or Decimal('0.00')
+        paid = Payment.objects.filter(client=instance.client).aggregate(total=models.Sum('amount'))['total'] or Decimal('0.00')
+        # Pending balance BEFORE this new invoice
+        balance_before = existing_total - paid
+        
+        ClientLedger.objects.filter(invoice=instance, transaction_type='invoice').delete()
         ClientLedger.objects.create(
             client=instance.client,
             project=instance.project,
@@ -399,27 +417,39 @@ def create_ledger_on_invoice(sender, instance, created, **kwargs):
             transaction_type='invoice',
             description=f"Invoice {instance.invoice_id} created",
             debit=instance.amount,
-            running_balance=balance.pending_balance + instance.amount,
+            running_balance=balance_before + instance.amount,  # Balance AFTER this invoice
             transaction_date=instance.invoice_date,
         )
-
-        balance.recalculate()
+    else:
+        # Update existing invoice ledger entry when invoice is edited
+        ledger_entry = ClientLedger.objects.filter(invoice=instance, transaction_type='invoice').first()
+        if ledger_entry:
+            if ledger_entry.debit != instance.amount:
+                # Recalculate all entries after this invoice
+                ledger_entry.debit = instance.amount
+                ledger_entry.running_balance = balance.pending_balance
+                ledger_entry.save()
 
 
 @receiver(models.signals.post_delete, sender=Invoice)
 def cleanup_on_invoice_delete(sender, instance, **kwargs):
-    # Delete all ledger entries for this invoice
-    ClientLedger.objects.filter(invoice=instance).delete()
+    invoice_pk = instance.pk
+    client_id = instance.client_id
     
-    # Delete all payments for this invoice
-    Payment.objects.filter(invoice=instance).delete()
+    # Delete all ledger entries for this invoice
+    ClientLedger.objects.filter(invoice_id=invoice_pk).delete()
+    
+    # Delete all payments for this invoice  
+    Payment.objects.filter(invoice_id=invoice_pk).delete()
     
     # Delete all revenue records for this invoice
-    Revenue.objects.filter(invoice=instance).delete()
+    Revenue.objects.filter(invoice_id=invoice_pk).delete()
 
-    if instance.client:
-        balance, _ = ClientBalance.objects.get_or_create(client=instance.client)
-        balance.recalculate()
+    # Recalculate balance AFTER deletion is complete
+    if client_id:
+        balance = ClientBalance.objects.filter(client_id=client_id).first()
+        if balance:
+            balance.recalculate()
 
 
 @receiver(models.signals.post_save, sender=Project)

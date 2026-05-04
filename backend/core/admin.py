@@ -93,12 +93,12 @@ class FinancialDashboardView(UnfoldModelAdminViewMixin, TemplateView):
         top_clients = []
         client_balances = ClientBalance.objects.select_related('client').all()
         
-        for cb in client_balances.order_by('-total_invoiced')[:5]:
-            payment_percentage = (cb.total_invoiced / cb.total_projects_cost * 100) if cb.total_projects_cost > 0 else 0
+        for cb in client_balances.order_by('-total_paid')[:5]:
+            payment_percentage = (cb.total_paid / cb.total_projects_cost * 100) if cb.total_projects_cost > 0 else 0
             top_clients.append({
                 'name': cb.client.name,
                 'total_cost': cb.total_projects_cost,
-                'total_paid': cb.total_invoiced,
+                'total_paid': cb.total_paid,
                 'pending': cb.pending_balance,
                 'payment_percentage': payment_percentage
             })

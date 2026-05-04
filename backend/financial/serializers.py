@@ -1,3 +1,4 @@
+from decimal import Decimal
 from rest_framework import serializers
 from .models import Invoice, InvoiceItem, Payment, ClientLedger, ClientBalance, Revenue, CompanyRevenue
 
@@ -35,33 +36,14 @@ class InvoiceSerializer(serializers.ModelSerializer):
 
 
 class InvoiceCreateSerializer(serializers.ModelSerializer):
-    payment_method = serializers.ChoiceField(
-        choices=['cash', 'bank_transfer', 'cheque', 'online', 'card', 'other'],
-        required=False,
-        write_only=True,
-    )
-
     class Meta:
         model = Invoice
         fields = [
-            'client', 'project', 'amount', 'invoice_date', 'due_date', 'notes', 'payment_method'
+            'client', 'project', 'amount', 'invoice_date', 'due_date', 'notes'
         ]
 
     def create(self, validated_data):
-        payment_method = validated_data.pop('payment_method', None)
         invoice = Invoice.objects.create(**validated_data)
-
-        if payment_method:
-            Payment.objects.create(
-                invoice=invoice,
-                client=invoice.client,
-                project=invoice.project,
-                amount=invoice.amount,
-                payment_method=payment_method,
-                payment_date=invoice.invoice_date,
-                created_by=self.context['request'].user if self.context.get('request') else None,
-            )
-
         return invoice
 
 
@@ -138,7 +120,6 @@ class ClientBalanceSerializer(serializers.ModelSerializer):
 
 
 class ClientLedgerDetailSerializer(serializers.ModelSerializer):
-    """Detailed serializer for client ledger page with all info"""
     ledger_entries = serializers.SerializerMethodField()
     balance = serializers.SerializerMethodField()
     invoices = serializers.SerializerMethodField()

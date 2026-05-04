@@ -1,0 +1,186 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 1200px; margin: 0 auto; padding: 20px;">
+    <h1 style="margin-bottom: 24px;">{{ title }}</h1>
+    
+    <!-- Stats Cards -->
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px;">
+        <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 16px;">
+            <p style="margin: 0; font-size: 12px; color: #0369a1;">Total Earned</p>
+            <p style="margin: 4px 0 0; font-size: 24px; font-weight: bold; color: #0c4a6e;">${{ total_earned|floatformat:2 }}</p>
+        </div>
+        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px;">
+            <p style="margin: 0; font-size: 12px; color: #166534;">Total Paid</p>
+            <p style="margin: 4px 0 0; font-size: 24px; font-weight: bold; color: #14532d;">${{ total_paid|floatformat:2 }}</p>
+        </div>
+        <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px;">
+            <p style="margin: 0; font-size: 12px; color: #991b1b;">Pending</p>
+            <p style="margin: 4px 0 0; font-size: 24px; font-weight: bold; color: #7f1d1d;">${{ pending|floatformat:2 }}</p>
+        </div>
+    </div>
+    
+    <!-- Tabs -->
+    <div style="margin-bottom: 24px;">
+        <button onclick="showTab('ledger')" id="tab-ledger" class="ledger-tab active" style="padding: 8px 16px; margin-right: 4px; border: 1px solid #d1d5db; border-radius: 6px 6px 0 0; background: #3b82f6; color: white; cursor: pointer;">Ledger Entries</button>
+        <button onclick="showTab('salary')" id="tab-salary" class="ledger-tab" style="padding: 8px 16px; margin-right: 4px; border: 1px solid #d1d5db; border-radius: 6px 6px 0 0; background: #f3f4f6; cursor: pointer;">Salary Payments</button>
+        <button onclick="showTab('expenses')" id="tab-expenses" class="ledger-tab" style="padding: 8px 16px; margin-right: 4px; border: 1px solid #d1d5db; border-radius: 6px 6px 0 0; background: #f3f4f6; cursor: pointer;">Expenses</button>
+        <button onclick="showTab('benefits')" id="tab-benefits" class="ledger-tab" style="padding: 8px 16px; border: 1px solid #d1d5db; border-radius: 6px 6px 0 0; background: #f3f4f6; cursor: pointer;">Benefits</button>
+    </div>
+    
+    <!-- Ledger Entries Tab -->
+    <div id="content-ledger" class="ledger-content">
+        {% if ledger_entries %}
+        <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
+            <thead>
+                <tr style="background: #f3f4f6;">
+                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Date</th>
+                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Type</th>
+                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Description</th>
+                    <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb;">Debit</th>
+                    <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb;">Credit</th>
+                    <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb;">Balance</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in ledger_entries %}
+                <tr style="border-bottom: 1px solid #f3f4f6;">
+                    <td style="padding: 12px;">{{ entry.transaction_date }}</td>
+                    <td style="padding: 12px;">{{ entry.get_transaction_type_display }}</td>
+                    <td style="padding: 12px;">{{ entry.description }}</td>
+                    <td style="padding: 12px; text-align: right; color: #e74c3c;">{% if entry.debit > 0 %}${{ entry.debit|floatformat:2 }}{% else %}-{% endif %}</td>
+                    <td style="padding: 12px; text-align: right; color: #2ecc71;">{% if entry.credit > 0 %}${{ entry.credit|floatformat:2 }}{% else %}-{% endif %}</td>
+                    <td style="padding: 12px; text-align: right; font-weight: bold;">${{ entry.running_balance|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color: #6b7280; text-align: center; padding: 40px;">No ledger entries yet.</p>
+        {% endif %}
+    </div>
+    
+    <!-- Salary Payments Tab -->
+    <div id="content-salary" class="ledger-content" style="display: none;">
+        {% if salary_payments %}
+        <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
+            <thead>
+                <tr style="background: #f3f4f6;">
+                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Payment ID</th>
+                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Month</th>
+                    <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb;">Amount</th>
+                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Method</th>
+                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Status</th>
+                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for payment in salary_payments %}
+                <tr style="border-bottom: 1px solid #f3f4f6;">
+                    <td style="padding: 12px;">{{ payment.payment_id }}</td>
+                    <td style="padding: 12px;">{{ payment.month|date:"F Y" }}</td>
+                    <td style="padding: 12px; text-align: right; font-weight: bold;">${{ payment.amount|floatformat:2 }}</td>
+                    <td style="padding: 12px;">{{ payment.get_payment_method_display }}</td>
+                    <td style="padding: 12px;">
+                        <span style="background: {% if payment.status == 'completed' %}#2ecc71{% elif payment.status == 'pending' %}#f39c12{% elif payment.status == 'processing' %}#3498db{% else %}#e74c3c{% endif %}; color: white; padding: 3px 8px; border-radius: 4px; font-size: 12px;">{{ payment.get_status_display }}</span>
+                    </td>
+                    <td style="padding: 12px;">{{ payment.payment_date|default:"-" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color: #6b7280; text-align: center; padding: 40px;">No salary payments yet.</p>
+        {% endif %}
+    </div>
+    
+    <!-- Expenses Tab -->
+    <div id="content-expenses" class="ledger-content" style="display: none;">
+        {% if expenses %}
+        <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
+            <thead>
+                <tr style="background: #f3f4f6;">
+                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Expense ID</th>
+                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Category</th>
+                    <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb;">Amount</th>
+                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Date</th>
+                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for exp in expenses %}
+                <tr style="border-bottom: 1px solid #f3f4f6;">
+                    <td style="padding: 12px;">{{ exp.expense_id }}</td>
+                    <td style="padding: 12px;">{{ exp.category.name }}</td>
+                    <td style="padding: 12px; text-align: right; font-weight: bold; color: #e74c3c;">${{ exp.amount|floatformat:2 }}</td>
+                    <td style="padding: 12px;">{{ exp.expense_date }}</td>
+                    <td style="padding: 12px;">
+                        <span style="background: {% if exp.status == 'completed' %}#2ecc71{% elif exp.status == 'pending' %}#f39c12{% elif exp.status == 'approved' %}#3498db{% else %}#e74c3c{% endif %}; color: white; padding: 3px 8px; border-radius: 4px; font-size: 12px;">{{ exp.get_status_display }}</span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color: #6b7280; text-align: center; padding: 40px;">No expenses yet.</p>
+        {% endif %}
+    </div>
+    
+    <!-- Benefits Tab -->
+    <div id="content-benefits" class="ledger-content" style="display: none;">
+        {% if benefits %}
+        <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
+            <thead>
+                <tr style="background: #f3f4f6;">
+                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Benefit ID</th>
+                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb;">Type</th>
+                    <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb;">Annual Limit</th>
+                    <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb;">Used</th>
+                    <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb;">Remaining</th>
+                    <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb;">Usage %</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for benefit in benefits %}
+                <tr style="border-bottom: 1px solid #f3f4f6;">
+                    <td style="padding: 12px;">{{ benefit.benefit_id }}</td>
+                    <td style="padding: 12px;">{{ benefit.get_benefit_type_display }}</td>
+                    <td style="padding: 12px; text-align: right;">${{ benefit.annual_limit|floatformat:2 }}</td>
+                    <td style="padding: 12px; text-align: right; color: #e74c3c;">${{ benefit.used_amount|floatformat:2 }}</td>
+                    <td style="padding: 12px; text-align: right; color: #2ecc71; font-weight: bold;">${{ benefit.remaining|floatformat:2 }}</td>
+                    <td style="padding: 12px; text-align: right;">{{ benefit.utilization_percentage|floatformat:1 }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color: #6b7280; text-align: center; padding: 40px;">No active benefits.</p>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function showTab(tabName) {
+    document.querySelectorAll('.ledger-content').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.ledger-tab').forEach(el => {
+        el.style.background = '#f3f4f6';
+        el.style.color = 'inherit';
+    });
+    
+    document.getElementById('content-' + tabName).style.display = 'block';
+    var tab = document.getElementById('tab-' + tabName);
+    tab.style.background = '#3b82f6';
+    tab.style.color = 'white';
+}
+</script>
+
+<style>
+.ledger-tab.active {
+    background: #3b82f6 !important;
+    color: white !important;
+}
+</style>
+{% endblock %}

@@ -1,5 +1,6 @@
 from decimal import Decimal
 from django.contrib import admin
+from django.db import models
 from django.urls import reverse
 from django.urls import path as url_path
 from django.utils.html import format_html
@@ -45,6 +46,7 @@ class InvoiceAdmin(ModelAdmin):
         }),
         ('Payment', {
             'fields': ('payment_method', 'payment_option'),
+            'classes': ('collapse',)
         }),
         ('Additional', {
             'fields': ('notes',),
@@ -132,33 +134,53 @@ class InvoiceAdmin(ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         from django.contrib import messages
-        if not obj.pk and obj.project and obj.amount > obj.project.remaining_budget:
-            self.message_user(
-                request,
-                f"Amount (${obj.amount}) cannot exceed project remaining balance (${obj.project.remaining_budget})",
-                level=messages.ERROR
-            )
-            return
-
-        if not obj.pk:
+        from decimal import Decimal
+        from django.db.models import Sum
+        
+        # Get pending balance BEFORE creating new invoice
+        pending_before = Decimal('0.00')
+        if not change and obj.client and obj.amount and not obj.pk:
+            total_invoiced = Invoice.objects.filter(client=obj.client).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+            total_paid = Payment.objects.filter(client=obj.client).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+            pending_before = total_invoiced - total_paid
+        
+        # Validate amount against project remaining budget FIRST
+        if not change and obj.project and obj.amount:
+            if obj.project.remaining_budget > 0 and obj.amount > obj.project.remaining_budget:
+                self.message_user(
+                    request,
+                    f"Amount (${obj.amount}) cannot exceed project remaining balance (${obj.project.remaining_budget})",
+                    level=messages.ERROR
+                )
+                return
+            
+            if obj.project.remaining_budget <= 0:
+                self.message_user(
+                    request,
+                    f"Project has no remaining budget. Cannot create invoice.",
+                    level=messages.ERROR
+                )
+                return
+        
+        if not change:
             obj.created_by = request.user
             obj.payment_method = request.POST.get('payment_method', 'bank_transfer')
 
+        # Save invoice FIRST
         super().save_model(request, obj, form, change)
-
-        if not change and obj.amount > 0:
-            payment_option = request.POST.get('payment_option', 'full')
-            
-            if payment_option == 'full':
-                Payment.objects.create(
-                    invoice=obj,
-                    client=obj.client,
-                    project=obj.project,
-                    amount=obj.amount,
-                    payment_method=obj.payment_method,
-                    payment_date=obj.invoice_date,
-                    created_by=request.user,
-                )
+        
+        # NOW create auto-payment from pending balance we calculated BEFORE
+        if not change and obj.amount and pending_before > 0:
+            auto_pay = min(obj.amount, pending_before)
+            Payment.objects.create(
+                invoice=obj,
+                client=obj.client,
+                project=obj.project,
+                amount=auto_pay,
+                payment_method=obj.payment_method or 'bank_transfer',
+                payment_date=obj.invoice_date,
+                created_by=request.user,
+            )
 
     def client_link(self, obj):
         if obj.client:
